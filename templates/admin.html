@@ -199,9 +199,14 @@
                 <p class="text-sm font-medium text-blue-700">Technician Admin</p>
                 <h1 class="text-2xl font-bold text-slate-900">Task Board</h1>
             </div>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="self-center text-xs text-slate-600">{{ account.display_name or account.username }} ({{ 'Main admin' if account.role == 'main' else 'Editor' }})</span>
+                {% if account.role == 'main' %}
+                <a href="{{ url_for('admin_accounts') }}" class="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-800 hover:bg-blue-50">Account management</a>
+                {% endif %}
                 <a href="/" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">New entry</a>
                 <form method="post" action="/admin/logout">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="rounded-lg border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Log out</button>
                 </form>
             </div>

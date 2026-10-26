@@ -2,6 +2,7 @@ import hmac
 import json
 import math
 import os
+import re
 import secrets
 import sqlite3
 from contextlib import closing
@@ -18,6 +19,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
@@ -79,11 +81,83 @@ def init_db():
             cursor.execute("ALTER TABLE job_logs ADD COLUMN completed_at TEXT")
         if "area" not in existing_columns:
             cursor.execute("ALTER TABLE job_logs ADD COLUMN area TEXT")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admin_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL CHECK (role IN ('main', 'editor')),
+                display_name TEXT NOT NULL DEFAULT '',
+                mobile TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        account_columns = {
+            row[1] for row in cursor.execute("PRAGMA table_info(admin_accounts)")
+        }
+        if "display_name" not in account_columns:
+            cursor.execute(
+                "ALTER TABLE admin_accounts ADD COLUMN display_name TEXT NOT NULL DEFAULT ''"
+            )
+        if "mobile" not in account_columns:
+            cursor.execute(
+                "ALTER TABLE admin_accounts ADD COLUMN mobile TEXT NOT NULL DEFAULT ''"
+            )
+        cursor.execute(
+            "UPDATE admin_accounts SET display_name = username "
+            "WHERE role = 'editor' AND display_name = ''"
+        )
+        main_admin = cursor.execute(
+            "SELECT id FROM admin_accounts WHERE role = 'main' LIMIT 1"
+        ).fetchone()
+        if main_admin is None:
+            admin_username = os.environ.get("ADMIN_USERNAME", "").strip()
+            admin_password = os.environ.get("ADMIN_PASSWORD", "")
+            if admin_username and valid_account_password(admin_password):
+                cursor.execute(
+                    """
+                    INSERT INTO admin_accounts (username, password_hash, role)
+                    VALUES (?, ?, 'main')
+                    """,
+                    (admin_username, generate_password_hash(admin_password)),
+                )
         conn.commit()
 
 
-def get_admin_credentials():
-    return os.environ.get("ADMIN_USERNAME"), os.environ.get("ADMIN_PASSWORD")
+def get_current_admin():
+    account_id = session.get("admin_account_id")
+    if not isinstance(account_id, int):
+        return None
+
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        row = conn.execute(
+            "SELECT id, username, role, display_name, mobile "
+            "FROM admin_accounts WHERE id = ?",
+            (account_id,),
+        ).fetchone()
+    if row is None:
+        session.clear()
+        return None
+    return {
+        "id": row[0],
+        "username": row[1],
+        "role": row[2],
+        "display_name": row[3],
+        "mobile": row[4],
+    }
+
+
+def valid_account_password(password):
+    return isinstance(password, str) and 8 <= len(password) <= 128
+
+
+def normalize_mobile(value):
+    if not isinstance(value, str):
+        return None
+    translated = value.translate(str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789"))
+    compact = re.sub(r"[\s()-]", "", translated)
+    if not re.fullmatch(r"\+?\d{8,15}", compact):
+        return None
+    return compact
 
 
 init_db()
@@ -108,41 +182,52 @@ def latest_customer_id():
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     error = None
-    username, password = get_admin_credentials()
 
     if request.method == "POST":
-        submitted_username = request.form.get("username", "")
+        submitted_username = request.form.get("username", "").strip()
         submitted_password = request.form.get("password", "")
-        if not username or not password:
-            error = "Set ADMIN_USERNAME and ADMIN_PASSWORD to enable admin login."
-        elif hmac.compare_digest(
-            submitted_username.encode("utf-8"), username.encode("utf-8")
-        ) and hmac.compare_digest(
-            submitted_password.encode("utf-8"), password.encode("utf-8")
-        ):
-            session["is_admin"] = True
-            session["admin_username"] = username
+        with closing(sqlite3.connect(DB_NAME)) as conn:
+            account = conn.execute(
+                """
+                SELECT id, password_hash
+                FROM admin_accounts
+                WHERE username = ? COLLATE NOCASE OR mobile = ?
+                LIMIT 1
+                """,
+                (
+                    normalize_mobile(submitted_username) or submitted_username,
+                    normalize_mobile(submitted_username) or submitted_username,
+                ),
+            ).fetchone()
+        if account and check_password_hash(account[1], submitted_password):
+            session.clear()
+            session["admin_account_id"] = account[0]
             session["admin_csrf_token"] = secrets.token_urlsafe(32)
             return redirect(url_for("admin"))
-        else:
-            error = "Incorrect username or password."
+        error = (
+            "No admin account is configured. Set ADMIN_USERNAME and ADMIN_PASSWORD "
+            "before starting the app."
+            if account is None
+            else "Incorrect username or password."
+        )
 
     return render_template("admin_login.html", error=error)
 
 
 @app.route("/admin/logout", methods=["POST"])
 def admin_logout():
+    if session.get("admin_account_id") is not None:
+        verify_admin_csrf_token()
     session.clear()
     return redirect(url_for("admin_login"))
 
 
 @app.route("/admin")
 def admin():
-    if not session.get("is_admin"):
+    account = get_current_admin()
+    if account is None:
         return redirect(url_for("admin_login"))
 
-    if not session.get("admin_username"):
-        session["admin_username"] = get_admin_credentials()[0] or "Admin"
     if "admin_csrf_token" not in session:
         session["admin_csrf_token"] = secrets.token_urlsafe(32)
     csrf_token = session["admin_csrf_token"]
@@ -194,6 +279,7 @@ def admin():
         tj_box_records=tj_box_records,
         csrf_token=csrf_token,
         areas=AREAS,
+        account=account,
     )
 
 
@@ -204,9 +290,119 @@ def verify_admin_csrf_token():
         abort(400, description="Request could not be verified. Refresh the page and try again.")
 
 
+@app.route("/admin/editors", methods=["POST"])
+def admin_add_editor():
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    verify_admin_csrf_token()
+
+    editor_name = request.form.get("name", "").strip()
+    mobile = normalize_mobile(request.form.get("mobile", "").strip())
+    password = request.form.get("password", "")
+    if not editor_name or len(editor_name) > 80:
+        flash("Enter an editor name up to 80 characters.", "error")
+        return redirect(url_for("admin_accounts"))
+    if mobile is None:
+        flash("Enter a valid mobile number with 8-15 digits.", "error")
+        return redirect(url_for("admin_accounts"))
+    if not valid_account_password(password):
+        flash("Password must be between 8 and 128 characters.", "error")
+        return redirect(url_for("admin_accounts"))
+
+    try:
+        with closing(sqlite3.connect(DB_NAME)) as conn:
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO admin_accounts
+                        (username, password_hash, role, display_name, mobile)
+                    VALUES (?, ?, 'editor', ?, ?)
+                    """,
+                    (mobile, generate_password_hash(password), editor_name, mobile),
+                )
+    except sqlite3.IntegrityError:
+        flash("An account already uses that mobile number.", "error")
+        return redirect(url_for("admin_accounts"))
+
+    flash(f"Editor '{editor_name}' added.", "success")
+    return redirect(url_for("admin_accounts"))
+
+
+@app.route("/admin/accounts")
+def admin_accounts():
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    if "admin_csrf_token" not in session:
+        session["admin_csrf_token"] = secrets.token_urlsafe(32)
+
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        editor_accounts = [
+            {"name": row[0], "mobile": row[1], "username": row[2]}
+            for row in conn.execute(
+                "SELECT display_name, mobile, username FROM admin_accounts "
+                "WHERE role = 'editor' ORDER BY display_name COLLATE NOCASE, id"
+            ).fetchall()
+        ]
+    return render_template(
+        "admin_accounts.html",
+        account=account,
+        editor_accounts=editor_accounts,
+        csrf_token=session["admin_csrf_token"],
+    )
+
+
+@app.route("/admin/password", methods=["POST"])
+def admin_change_password():
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    verify_admin_csrf_token()
+
+    current_password = request.form.get("current_password", "")
+    new_password = request.form.get("new_password", "")
+    confirm_password = request.form.get("confirm_password", "")
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        row = conn.execute(
+            "SELECT password_hash FROM admin_accounts WHERE id = ? AND role = 'main'",
+            (account["id"],),
+        ).fetchone()
+        if row is None or not check_password_hash(row[0], current_password):
+            flash("Current password is incorrect.", "error")
+            return redirect(url_for("admin_accounts"))
+
+        if not valid_account_password(new_password):
+            flash("New password must be between 8 and 128 characters.", "error")
+            return redirect(url_for("admin_accounts"))
+        if new_password != confirm_password:
+            flash("New password and confirmation do not match.", "error")
+            return redirect(url_for("admin_accounts"))
+        if check_password_hash(row[0], new_password):
+            flash("Choose a password different from the current one.", "error")
+            return redirect(url_for("admin_accounts"))
+
+        with conn:
+            conn.execute(
+                "UPDATE admin_accounts SET password_hash = ? "
+                "WHERE id = ? AND role = 'main'",
+                (generate_password_hash(new_password), account["id"]),
+            )
+
+    session.clear()
+    flash("Main admin password updated. Please log in with the new password.", "success")
+    return redirect(url_for("admin_login"))
+
+
 @app.route("/admin/<int:record_id>/update", methods=["POST"])
 def admin_update(record_id):
-    if not session.get("is_admin"):
+    if get_current_admin() is None:
         return redirect(url_for("admin_login"))
     verify_admin_csrf_token()
 
@@ -295,7 +491,7 @@ def admin_update(record_id):
 
 @app.route("/admin/<int:record_id>/delete", methods=["POST"])
 def admin_delete(record_id):
-    if not session.get("is_admin"):
+    if get_current_admin() is None:
         return redirect(url_for("admin_login"))
     verify_admin_csrf_token()
 
@@ -311,7 +507,8 @@ def admin_delete(record_id):
 
 @app.route("/api/update-status/<int:job_id>", methods=["POST"])
 def update_status(job_id):
-    if not session.get("is_admin"):
+    account = get_current_admin()
+    if account is None:
         return jsonify({"status": "error", "message": "Admin login required."}), 401
 
     data = request.get_json(silent=True)
@@ -331,7 +528,7 @@ def update_status(job_id):
     if not isinstance(new_status, str) or new_status not in {"pending", "done"}:
         return jsonify({"status": "error", "message": "Choose a valid task status."}), 400
 
-    completed_by = session.get("admin_username") or get_admin_credentials()[0]
+    completed_by = account["display_name"] or account["username"]
     if new_status == "done" and not completed_by:
         return jsonify(
             {"status": "error", "message": "The admin username is not configured."}

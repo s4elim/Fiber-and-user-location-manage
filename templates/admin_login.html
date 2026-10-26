@@ -9,21 +9,17 @@
 <body class="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
     <main class="w-full max-w-sm rounded-2xl border bg-white p-6 shadow-lg">
         <h1 class="mb-5 text-xl font-bold text-gray-800">Admin Login</h1>
-        <details class="mb-4 rounded-lg bg-blue-50 p-3 text-xs text-gray-700">
-            <summary class="cursor-pointer font-semibold text-blue-800">How do I set the username and password?</summary>
-            <p class="mt-2">Set these values in Windows PowerShell, then start the server in the same window:</p>
-            <pre class="mt-2 overflow-x-auto rounded bg-white p-2">$env:ADMIN_USERNAME = "your-username"
-$env:ADMIN_PASSWORD = "your-password"
-$env:FLASK_SECRET_KEY = [guid]::NewGuid().ToString('N')
-python app.py</pre>
-            <p class="mt-2">Set them again whenever you open a new PowerShell window.</p>
-        </details>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+            <p class="mb-4 rounded-lg p-3 text-sm {{ 'bg-emerald-50 text-emerald-800' if category == 'success' else 'bg-red-50 text-red-700' }}">{{ message }}</p>
+            {% endfor %}
+        {% endwith %}
         {% if error %}
         <p class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
         {% endif %}
         <form method="post" class="space-y-4">
             <label class="block text-sm font-medium text-gray-700">
-                Username
+                Username or mobile
                 <input name="username" autocomplete="username" required class="mt-1 w-full rounded-lg border px-3 py-2">
             </label>
             <label class="block text-sm font-medium text-gray-700">
