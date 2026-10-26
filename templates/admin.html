@@ -11,6 +11,13 @@
             user-select: none;
         }
 
+        .completed-task {
+            display: grid;
+            grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
         .task-card.is-dragging {
             opacity: 0.45;
             cursor: grabbing;
@@ -126,18 +133,23 @@
             <button type="button" onclick="updateTaskStatus(this, 'done')" class="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">✓ Mark as done</button>
         </div>
     </div>
-    <div class="done-card-content {{ '' if record.status == 'done' else 'hidden' }} flex min-h-14 flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap p-2 pr-12 text-xs text-emerald-950">
-        <button type="button" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder" class="px-1 text-lg leading-none text-emerald-700">⠿</button>
-        <span class="shrink-0 font-bold">#{{ record.id }}</span>
-        <span class="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 font-semibold">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
-        <time class="shrink-0 text-emerald-800">{{ record.timestamp }}</time>
-        <span class="max-w-24 truncate font-medium" title="{{ record.onu_id or record.customer_id or record.splitter or record.location or '' }}">{{ record.onu_id or record.customer_id or record.splitter or record.location or '-' }}</span>
-        {% if record.latitude is not none and record.longitude is not none %}
-        <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" rel="noopener noreferrer" class="shrink-0 font-medium text-emerald-800 underline">Map</a>
-        {% endif %}
-        <span class="max-w-20 truncate text-[10px] text-emerald-700" title="{{ record.device_info or 'Device information unavailable' }}">{{ record.device_info or 'No device info' }}</span>
-        <span class="max-w-24 truncate text-emerald-800" data-completed-by title="Completed by {{ record.completed_by or 'Unknown' }}">✓ {{ record.completed_by or 'Unknown' }}</span>
-        <button type="button" onclick="updateTaskStatus(this, 'pending')" class="ml-auto shrink-0 rounded border border-emerald-300 bg-white px-2 py-1 text-[11px] text-emerald-800">Undo</button>
+    <div class="done-card-content {{ '' if record.status == 'done' else 'hidden' }} completed-task min-h-[4.5rem] p-2 pr-14 text-xs text-emerald-950">
+        <button type="button" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder" class="row-span-2 rounded px-1 text-lg leading-none text-emerald-700 hover:bg-emerald-100">⠿</button>
+        <div class="min-w-0">
+            <div class="flex min-w-0 items-center gap-1.5">
+                <span class="shrink-0 font-bold">#{{ record.id }}</span>
+                <span class="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
+                <span class="min-w-0 truncate font-medium" title="{{ record.onu_id or record.customer_id or record.splitter or record.location or '' }}">{{ record.onu_id or record.customer_id or record.splitter or record.location or '-' }}</span>
+                {% if record.latitude is not none and record.longitude is not none %}
+                <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" rel="noopener noreferrer" class="shrink-0 font-medium text-emerald-800 underline">Map</a>
+                {% endif %}
+            </div>
+            <div class="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-emerald-800">
+                <time class="shrink-0" data-completed-at>{{ record.completed_at or record.timestamp }}</time>
+                <span class="min-w-0 truncate" data-completed-by title="Completed by {{ record.completed_by or 'Unknown' }}">By {{ record.completed_by or 'Unknown' }}</span>
+            </div>
+        </div>
+        <button type="button" onclick="updateTaskStatus(this, 'pending')" class="shrink-0 rounded-md border border-emerald-300 bg-white px-2 py-1.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100">Undo</button>
     </div>
     <div class="done-card-actions {{ '' if record.status == 'done' else 'hidden' }} absolute right-1 top-1 flex items-center gap-0.5">
         <button type="button" onclick="toggleEdit({{ record.id }})" title="Edit task" aria-label="Edit task" class="rounded p-1 text-sm leading-none text-slate-500 hover:bg-blue-50 hover:text-blue-700">✏️</button>
@@ -152,8 +164,14 @@
 {% macro task_lane(records, category, status) %}
 <section class="min-w-0 rounded-xl border border-slate-200 bg-slate-100/80 p-2" aria-label="{{ status|title }} tasks">
     <header class="mb-2 flex items-center justify-between px-1">
-        <h3 class="text-xs font-semibold uppercase tracking-wide {{ 'text-amber-800' if status == 'pending' else 'text-emerald-800' }}">{{ 'Pending' if status == 'pending' else 'Completed' }}</h3>
-        <span class="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-600">{{ records|selectattr('status', 'equalto', status)|list|length }}</span>
+        <div class="flex items-center gap-2">
+            <span class="flex h-5 w-5 items-center justify-center rounded-full {{ 'bg-amber-100 text-amber-700' if status == 'pending' else 'bg-emerald-100 text-emerald-700' }}">{{ '!' if status == 'pending' else '✓' }}</span>
+            <div>
+                <h3 class="text-xs font-semibold uppercase tracking-wide {{ 'text-amber-800' if status == 'pending' else 'text-emerald-800' }}">{{ 'Pending' if status == 'pending' else 'Completed' }}</h3>
+                {% if status == 'done' %}<p class="text-[10px] text-slate-500">Latest completed first</p>{% endif %}
+            </div>
+        </div>
+        <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ 'bg-amber-100 text-amber-800' if status == 'pending' else 'bg-emerald-100 text-emerald-800' }}">{{ records|selectattr('status', 'equalto', status)|list|length }}</span>
     </header>
     <div class="task-list min-h-12 {{ 'pending-task-list' if status == 'pending' else 'space-y-2' }}" data-order-key="{{ category }}-{{ status }}">
         {% for record in records if record.status == status %}
@@ -243,7 +261,7 @@
             try {
                 const ids = Array.from(list.querySelectorAll(':scope > .task-card'))
                     .map((card) => card.dataset.taskId);
-                localStorage.setItem('admin-task-order-' + list.dataset.orderKey, JSON.stringify(ids));
+                localStorage.setItem('admin-task-order-v3-' + list.dataset.orderKey, JSON.stringify(ids));
             } catch (error) {
                 showBoardMessage('Could not save the card order in this browser.');
             }
@@ -257,7 +275,7 @@
             count.innerText = cards.length;
         }
 
-        function setTaskStatus(card, status, completedBy) {
+        function setTaskStatus(card, status, completedBy, completedAt) {
             const isDone = status === 'done';
             const board = card.closest('.task-board');
             const category = board.dataset.board;
@@ -275,10 +293,14 @@
             card.querySelector('.done-card-actions').classList.toggle('hidden', !isDone);
             const completedLabel = card.querySelector('[data-completed-by]');
             if (completedLabel) {
-                completedLabel.innerText = isDone ? '✓ ' + completedBy : '';
+                completedLabel.innerText = isDone ? 'By ' + completedBy : '';
                 completedLabel.title = isDone ? 'Completed by ' + completedBy : '';
             }
-            destination.appendChild(card);
+            const completedAtLabel = card.querySelector('[data-completed-at]');
+            if (completedAtLabel) {
+                completedAtLabel.innerText = isDone ? completedAt : '';
+            }
+            destination.insertBefore(card, destination.firstElementChild);
             updateLaneState(source);
             updateLaneState(destination);
             saveListOrder(source);
@@ -302,7 +324,12 @@
                 if (!response.ok || result.status !== 'success') {
                     throw new Error(result.message || 'Could not update task status.');
                 }
-                setTaskStatus(card, result.status_value, result.completed_by);
+                setTaskStatus(
+                    card,
+                    result.status_value,
+                    result.completed_by,
+                    result.completed_at
+                );
             } catch (error) {
                 showBoardMessage('Error: ' + error.message);
             } finally {
@@ -315,7 +342,7 @@
                 const cards = Array.from(list.querySelectorAll(':scope > .task-card'));
                 const cardsById = new Map(cards.map((card) => [card.dataset.taskId, card]));
                 try {
-                    const savedOrder = localStorage.getItem('admin-task-order-' + list.dataset.orderKey);
+                    const savedOrder = localStorage.getItem('admin-task-order-v3-' + list.dataset.orderKey);
                     if (savedOrder) {
                         const ids = JSON.parse(savedOrder);
                         if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {

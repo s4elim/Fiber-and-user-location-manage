@@ -66,6 +66,8 @@ def init_db():
             )
         if "completed_by" not in existing_columns:
             cursor.execute("ALTER TABLE job_logs ADD COLUMN completed_by TEXT")
+        if "completed_at" not in existing_columns:
+            cursor.execute("ALTER TABLE job_logs ADD COLUMN completed_at TEXT")
         conn.commit()
 
 
@@ -139,9 +141,12 @@ def admin():
             SELECT id, timestamp, work_type, latitude, longitude, accuracy,
                    start_meter, end_meter, total_fiber, onu_id, customer_name,
                    splitter_info, notes, customer_id, tj_details, location,
-                   device_info, status, completed_by
+                   device_info, status, completed_by, completed_at
             FROM job_logs
-            ORDER BY id DESC
+            ORDER BY
+                CASE WHEN status = 'done' THEN 1 ELSE 0 END,
+                CASE WHEN status = 'done' THEN completed_at END DESC,
+                id DESC
             """
         ).fetchall()
     records = [
@@ -165,6 +170,7 @@ def admin():
             "device_info": row[16],
             "status": row[17] or "pending",
             "completed_by": row[18] or "",
+            "completed_at": row[19] or "",
         }
         for row in rows
     ]
@@ -313,11 +319,25 @@ def update_status(job_id):
             {"status": "error", "message": "The admin username is not configured."}
         ), 400
 
+    completed_at = (
+        datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+        if new_status == "done"
+        else None
+    )
     with closing(sqlite3.connect(DB_NAME)) as conn:
         with conn:
             cursor = conn.execute(
-                "UPDATE job_logs SET status = ?, completed_by = ? WHERE id = ?",
-                (new_status, completed_by if new_status == "done" else None, job_id),
+                """
+                UPDATE job_logs
+                SET status = ?, completed_by = ?, completed_at = ?
+                WHERE id = ?
+                """,
+                (
+                    new_status,
+                    completed_by if new_status == "done" else None,
+                    completed_at,
+                    job_id,
+                ),
             )
             if cursor.rowcount == 0:
                 return jsonify(
@@ -330,6 +350,7 @@ def update_status(job_id):
             "job_id": job_id,
             "status_value": new_status,
             "completed_by": completed_by if new_status == "done" else "",
+            "completed_at": completed_at or "",
         }
     )
 
