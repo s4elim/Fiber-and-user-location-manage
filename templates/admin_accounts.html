@@ -31,12 +31,16 @@
                 <div class="mb-5">
                     <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Team access</p>
                     <h2 class="mt-1 text-xl font-bold text-slate-900">Add an editor</h2>
-                    <p class="mt-1 text-sm text-slate-500">Editors sign in with their mobile number and password.</p>
+                    <p class="mt-1 text-sm text-slate-500">Editors can sign in with either their username or mobile number.</p>
                 </div>
                 <form method="post" action="{{ url_for('admin_add_editor') }}" class="space-y-4">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <label class="block text-sm font-medium text-slate-700">Editor name
                         <input name="name" maxlength="80" autocomplete="name" required placeholder="Enter full name" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                    </label>
+                    <label class="block text-sm font-medium text-slate-700">Username
+                        <input name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]{3,32}" autocomplete="username" required placeholder="e.g. technician01" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                        <span class="mt-1 block text-xs font-normal text-slate-500">3-32 letters, numbers, dots, dashes or underscores.</span>
                     </label>
                     <label class="block text-sm font-medium text-slate-700">Mobile number
                         <input name="mobile" type="tel" inputmode="tel" autocomplete="tel" required placeholder="01XXXXXXXXX" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
@@ -86,6 +90,7 @@
                     </div>
                     <div class="min-w-0">
                         <h3 class="truncate font-semibold text-slate-900">{{ editor.name }}</h3>
+                        <p class="mt-0.5 truncate text-sm text-slate-600">@{{ editor.username }}</p>
                         <p class="mt-0.5 text-sm text-slate-500">{{ editor.mobile or 'Mobile number not set' }}</p>
                         <span class="mt-1 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Editor</span>
                     </div>

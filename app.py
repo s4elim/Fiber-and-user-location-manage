@@ -106,6 +106,10 @@ def init_db():
             "UPDATE admin_accounts SET display_name = username "
             "WHERE role = 'editor' AND display_name = ''"
         )
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_accounts_mobile "
+            "ON admin_accounts (mobile) WHERE mobile != ''"
+        )
         main_admin = cursor.execute(
             "SELECT id FROM admin_accounts WHERE role = 'main' LIMIT 1"
         ).fetchone()
@@ -300,10 +304,17 @@ def admin_add_editor():
     verify_admin_csrf_token()
 
     editor_name = request.form.get("name", "").strip()
+    username = request.form.get("username", "").strip()
     mobile = normalize_mobile(request.form.get("mobile", "").strip())
     password = request.form.get("password", "")
     if not editor_name or len(editor_name) > 80:
         flash("Enter an editor name up to 80 characters.", "error")
+        return redirect(url_for("admin_accounts"))
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{3,32}", username):
+        flash(
+            "Username must be 3-32 characters and use letters, numbers, dots, dashes, or underscores.",
+            "error",
+        )
         return redirect(url_for("admin_accounts"))
     if mobile is None:
         flash("Enter a valid mobile number with 8-15 digits.", "error")
@@ -321,10 +332,10 @@ def admin_add_editor():
                         (username, password_hash, role, display_name, mobile)
                     VALUES (?, ?, 'editor', ?, ?)
                     """,
-                    (mobile, generate_password_hash(password), editor_name, mobile),
+                    (username, generate_password_hash(password), editor_name, mobile),
                 )
     except sqlite3.IntegrityError:
-        flash("An account already uses that mobile number.", "error")
+        flash("That username or mobile number is already in use.", "error")
         return redirect(url_for("admin_accounts"))
 
     flash(f"Editor '{editor_name}' added.", "success")
