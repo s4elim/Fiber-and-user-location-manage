@@ -30,26 +30,30 @@
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="mb-5">
                     <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Team access</p>
-                    <h2 class="mt-1 text-xl font-bold text-slate-900">Add an editor</h2>
+                    <h2 id="editorHeading" class="mt-1 text-xl font-bold text-slate-900">Add an editor</h2>
                     <p class="mt-1 text-sm text-slate-500">Editors can sign in with either their username or mobile number.</p>
                 </div>
-                <form method="post" action="{{ url_for('admin_add_editor') }}" class="space-y-4">
+                <form id="editorForm" method="post" action="{{ url_for('admin_add_editor') }}" class="space-y-4">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <label class="block text-sm font-medium text-slate-700">Editor name
-                        <input name="name" maxlength="80" autocomplete="name" required placeholder="Enter full name" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                        <input id="editorName" name="name" maxlength="80" autocomplete="name" required placeholder="Enter full name" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                     </label>
                     <label class="block text-sm font-medium text-slate-700">Username
-                        <input name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]{3,32}" autocomplete="username" required placeholder="e.g. technician01" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                        <input id="editorUsername" name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]{3,32}" autocomplete="username" required placeholder="e.g. technician01" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                         <span class="mt-1 block text-xs font-normal text-slate-500">3-32 letters, numbers, dots, dashes or underscores.</span>
                     </label>
                     <label class="block text-sm font-medium text-slate-700">Mobile number
-                        <input name="mobile" type="tel" inputmode="tel" autocomplete="tel" required placeholder="01XXXXXXXXX" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                        <input id="editorMobile" name="mobile" type="tel" inputmode="tel" autocomplete="tel" required placeholder="01XXXXXXXXX" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                         <span class="mt-1 block text-xs font-normal text-slate-500">Use 8-15 digits. Spaces, dashes and Bangla numerals are accepted.</span>
                     </label>
                     <label class="block text-sm font-medium text-slate-700">Password
-                        <input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required placeholder="At least 8 characters" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                        <input id="editorPassword" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required placeholder="At least 8 characters" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                        <span id="editorPasswordHint" class="mt-1 hidden text-xs font-normal text-slate-500">Leave blank to keep the current password.</span>
                     </label>
-                    <button class="w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 sm:w-auto">Save editor</button>
+                    <div class="flex flex-wrap gap-2">
+                        <button id="editorSubmit" class="w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 sm:w-auto">Save editor</button>
+                        <button id="cancelEditorEdit" type="button" onclick="resetEditorForm()" class="hidden rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel edit</button>
+                    </div>
                 </form>
             </div>
 
@@ -82,20 +86,35 @@
                 <span class="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-800">{{ editor_accounts|length }}</span>
             </div>
             {% if editor_accounts %}
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <table class="w-full min-w-[680px] text-left text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                            <th class="px-4 py-3 font-semibold">Editor</th>
+                            <th class="px-4 py-3 font-semibold">Username</th>
+                            <th class="px-4 py-3 font-semibold">Mobile</th>
+                            <th class="px-4 py-3 text-right font-semibold">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
                 {% for editor in editor_accounts %}
-                <article class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-600 text-lg font-bold text-white">
-                        {{ editor.name[:1] | upper }}
-                    </div>
-                    <div class="min-w-0">
-                        <h3 class="truncate font-semibold text-slate-900">{{ editor.name }}</h3>
-                        <p class="mt-0.5 truncate text-sm text-slate-600">@{{ editor.username }}</p>
-                        <p class="mt-0.5 text-sm text-slate-500">{{ editor.mobile or 'Mobile number not set' }}</p>
-                        <span class="mt-1 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Editor</span>
-                    </div>
-                </article>
+                        <tr>
+                            <td class="px-4 py-3 font-medium text-slate-900">{{ editor.name }}</td>
+                            <td class="px-4 py-3 text-slate-600">@{{ editor.username }}</td>
+                            <td class="px-4 py-3 text-slate-600">{{ editor.mobile }}</td>
+                            <td class="px-4 py-3">
+                                <div class="flex justify-end gap-2">
+                                    <button type="button" onclick="editEditor(this)" data-id="{{ editor.id }}" data-name="{{ editor.name }}" data-username="{{ editor.username }}" data-mobile="{{ editor.mobile }}" class="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100">Edit</button>
+                                    <form method="post" action="{{ url_for('admin_delete_editor', editor_id=editor.id) }}" onsubmit="return confirm('Delete this editor account? They will no longer be able to log in.');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
                 {% endfor %}
+                    </tbody>
+                </table>
             </div>
             {% else %}
             <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
@@ -105,5 +124,38 @@
             {% endif %}
         </section>
     </main>
+    <script>
+        const editorForm = document.getElementById("editorForm");
+
+        function editEditor(button) {
+            const editor = button.dataset;
+            document.getElementById("editorName").value = editor.name;
+            document.getElementById("editorUsername").value = editor.username;
+            document.getElementById("editorMobile").value = editor.mobile;
+            const password = document.getElementById("editorPassword");
+            password.value = "";
+            password.required = false;
+            password.placeholder = "Leave blank to keep current password";
+            document.getElementById("editorPasswordHint").classList.remove("hidden");
+            document.getElementById("editorHeading").textContent = "Edit editor";
+            document.getElementById("editorSubmit").textContent = "Update editor";
+            document.getElementById("cancelEditorEdit").classList.remove("hidden");
+            editorForm.action = `/admin/editors/${editor.id}/update`;
+            editorForm.scrollIntoView({ behavior: "smooth", block: "start" });
+            document.getElementById("editorName").focus({ preventScroll: true });
+        }
+
+        function resetEditorForm() {
+            editorForm.reset();
+            editorForm.action = "{{ url_for('admin_add_editor') }}";
+            const password = document.getElementById("editorPassword");
+            password.required = true;
+            password.placeholder = "At least 8 characters";
+            document.getElementById("editorPasswordHint").classList.add("hidden");
+            document.getElementById("editorHeading").textContent = "Add an editor";
+            document.getElementById("editorSubmit").textContent = "Save editor";
+            document.getElementById("cancelEditorEdit").classList.add("hidden");
+        }
+    </script>
 </body>
 </html>

@@ -169,7 +169,11 @@ init_db()
 
 @app.route("/")
 def index():
-    return render_template("index.html", areas=AREAS)
+    return render_template(
+        "index.html",
+        areas=AREAS,
+        is_admin_logged_in=get_current_admin() is not None,
+    )
 
 
 @app.route("/api/latest-customer-id")
@@ -354,9 +358,9 @@ def admin_accounts():
 
     with closing(sqlite3.connect(DB_NAME)) as conn:
         editor_accounts = [
-            {"name": row[0], "mobile": row[1], "username": row[2]}
+            {"id": row[0], "name": row[1], "mobile": row[2], "username": row[3]}
             for row in conn.execute(
-                "SELECT display_name, mobile, username FROM admin_accounts "
+                "SELECT id, display_name, mobile, username FROM admin_accounts "
                 "WHERE role = 'editor' ORDER BY display_name COLLATE NOCASE, id"
             ).fetchall()
         ]
@@ -366,6 +370,157 @@ def admin_accounts():
         editor_accounts=editor_accounts,
         csrf_token=session["admin_csrf_token"],
     )
+
+
+@app.route("/admin/editors/<int:editor_id>/username", methods=["POST"])
+def admin_update_editor_username(editor_id):
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    verify_admin_csrf_token()
+
+    username = request.form.get("username", "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{3,32}", username):
+        flash(
+            "Username must be 3-32 characters and use letters, numbers, dots, dashes, or underscores.",
+            "error",
+        )
+        return redirect(url_for("admin_accounts"))
+
+    try:
+        with closing(sqlite3.connect(DB_NAME)) as conn:
+            with conn:
+                cursor = conn.execute(
+                    "UPDATE admin_accounts SET username = ? "
+                    "WHERE id = ? AND role = 'editor'",
+                    (username, editor_id),
+                )
+                if cursor.rowcount == 0:
+                    abort(404)
+    except sqlite3.IntegrityError:
+        flash("That username is already in use.", "error")
+        return redirect(url_for("admin_accounts"))
+
+    flash("Editor username updated.", "success")
+    return redirect(url_for("admin_accounts"))
+
+
+@app.route("/admin/editors/<int:editor_id>/update", methods=["POST"])
+def admin_update_editor(editor_id):
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    verify_admin_csrf_token()
+
+    editor_name = request.form.get("name", "").strip()
+    username = request.form.get("username", "").strip()
+    mobile = normalize_mobile(request.form.get("mobile", "").strip())
+    password = request.form.get("password", "")
+    if not editor_name or len(editor_name) > 80:
+        flash("Enter an editor name up to 80 characters.", "error")
+        return redirect(url_for("admin_accounts"))
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{3,32}", username):
+        flash(
+            "Username must be 3-32 characters and use letters, numbers, dots, dashes, or underscores.",
+            "error",
+        )
+        return redirect(url_for("admin_accounts"))
+    if mobile is None:
+        flash("Enter a valid mobile number with 8-15 digits.", "error")
+        return redirect(url_for("admin_accounts"))
+    if password and not valid_account_password(password):
+        flash("Editor password must be between 8 and 128 characters.", "error")
+        return redirect(url_for("admin_accounts"))
+
+    try:
+        with closing(sqlite3.connect(DB_NAME)) as conn:
+            with conn:
+                if password:
+                    cursor = conn.execute(
+                        """
+                        UPDATE admin_accounts
+                        SET display_name = ?, username = ?, mobile = ?, password_hash = ?
+                        WHERE id = ? AND role = 'editor'
+                        """,
+                        (
+                            editor_name,
+                            username,
+                            mobile,
+                            generate_password_hash(password),
+                            editor_id,
+                        ),
+                    )
+                else:
+                    cursor = conn.execute(
+                        """
+                        UPDATE admin_accounts
+                        SET display_name = ?, username = ?, mobile = ?
+                        WHERE id = ? AND role = 'editor'
+                        """,
+                        (editor_name, username, mobile, editor_id),
+                    )
+                if cursor.rowcount == 0:
+                    abort(404)
+    except sqlite3.IntegrityError:
+        flash("That username or mobile number is already in use.", "error")
+        return redirect(url_for("admin_accounts"))
+
+    flash(f"Editor '{editor_name}' updated.", "success")
+    return redirect(url_for("admin_accounts"))
+
+
+@app.route("/admin/editors/<int:editor_id>/password", methods=["POST"])
+def admin_reset_editor_password(editor_id):
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    verify_admin_csrf_token()
+
+    password = request.form.get("password", "")
+    if not valid_account_password(password):
+        flash("Editor password must be between 8 and 128 characters.", "error")
+        return redirect(url_for("admin_accounts"))
+
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        with conn:
+            cursor = conn.execute(
+                "UPDATE admin_accounts SET password_hash = ? "
+                "WHERE id = ? AND role = 'editor'",
+                (generate_password_hash(password), editor_id),
+            )
+            if cursor.rowcount == 0:
+                abort(404)
+
+    flash("Editor password updated.", "success")
+    return redirect(url_for("admin_accounts"))
+
+
+@app.route("/admin/editors/<int:editor_id>/delete", methods=["POST"])
+def admin_delete_editor(editor_id):
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    verify_admin_csrf_token()
+
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        with conn:
+            cursor = conn.execute(
+                "DELETE FROM admin_accounts WHERE id = ? AND role = 'editor'",
+                (editor_id,),
+            )
+            if cursor.rowcount == 0:
+                abort(404)
+
+    flash("Editor account deleted.", "success")
+    return redirect(url_for("admin_accounts"))
 
 
 @app.route("/admin/password", methods=["POST"])
