@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin login</title>
+    <title>Admin Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
     <main class="w-full max-w-sm rounded-2xl border bg-white p-6 shadow-lg">
-        <h1 class="mb-5 text-xl font-bold text-gray-800">Admin login</h1>
+        <h1 class="mb-5 text-xl font-bold text-gray-800">Admin Login</h1>
         <details class="mb-4 rounded-lg bg-blue-50 p-3 text-xs text-gray-700">
-            <summary class="cursor-pointer font-semibold text-blue-800">Username / password কোথায় সেট করব?</summary>
-            <p class="mt-2">Windows PowerShell-এ নিচের মানগুলো বসিয়ে একই উইন্ডোতে সার্ভার চালান:</p>
-            <pre class="mt-2 overflow-x-auto rounded bg-white p-2">$env:ADMIN_USERNAME = "আপনার ইউজারনেম"
-$env:ADMIN_PASSWORD = "আপনার পাসওয়ার্ড"
+            <summary class="cursor-pointer font-semibold text-blue-800">How do I set the username and password?</summary>
+            <p class="mt-2">Set these values in Windows PowerShell, then start the server in the same window:</p>
+            <pre class="mt-2 overflow-x-auto rounded bg-white p-2">$env:ADMIN_USERNAME = "your-username"
+$env:ADMIN_PASSWORD = "your-password"
 $env:FLASK_SECRET_KEY = [guid]::NewGuid().ToString('N')
 python app.py</pre>
-            <p class="mt-2">PowerShell উইন্ডো বন্ধ হলে আবার সেট করতে হবে।</p>
+            <p class="mt-2">Set them again whenever you open a new PowerShell window.</p>
         </details>
         {% if error %}
         <p class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
@@ -32,7 +32,7 @@ python app.py</pre>
             </label>
             <button class="w-full rounded-lg bg-blue-600 py-2 font-semibold text-white hover:bg-blue-700">Login</button>
         </form>
-        <a href="/" class="mt-4 inline-block text-sm text-blue-700 underline">ফর্মে ফিরুন</a>
+        <a href="/" class="mt-4 inline-block text-sm text-blue-700 underline">Return to entry form</a>
     </main>
 </body>
 </html>

@@ -64,6 +64,8 @@ def init_db():
             cursor.execute(
                 "ALTER TABLE job_logs ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'"
             )
+        if "completed_by" not in existing_columns:
+            cursor.execute("ALTER TABLE job_logs ADD COLUMN completed_by TEXT")
         conn.commit()
 
 
@@ -99,17 +101,18 @@ def admin_login():
         submitted_username = request.form.get("username", "")
         submitted_password = request.form.get("password", "")
         if not username or not password:
-            error = "Admin login চালু করতে ADMIN_USERNAME ও ADMIN_PASSWORD সেট করুন।"
+            error = "Set ADMIN_USERNAME and ADMIN_PASSWORD to enable admin login."
         elif hmac.compare_digest(
             submitted_username.encode("utf-8"), username.encode("utf-8")
         ) and hmac.compare_digest(
             submitted_password.encode("utf-8"), password.encode("utf-8")
         ):
             session["is_admin"] = True
+            session["admin_username"] = username
             session["admin_csrf_token"] = secrets.token_urlsafe(32)
             return redirect(url_for("admin"))
         else:
-            error = "Username বা password সঠিক নয়।"
+            error = "Incorrect username or password."
 
     return render_template("admin_login.html", error=error)
 
@@ -125,6 +128,8 @@ def admin():
     if not session.get("is_admin"):
         return redirect(url_for("admin_login"))
 
+    if not session.get("admin_username"):
+        session["admin_username"] = get_admin_credentials()[0] or "Admin"
     if "admin_csrf_token" not in session:
         session["admin_csrf_token"] = secrets.token_urlsafe(32)
     csrf_token = session["admin_csrf_token"]
@@ -134,9 +139,9 @@ def admin():
             SELECT id, timestamp, work_type, latitude, longitude, accuracy,
                    start_meter, end_meter, total_fiber, onu_id, customer_name,
                    splitter_info, notes, customer_id, tj_details, location,
-                   device_info, status
+                   device_info, status, completed_by
             FROM job_logs
-            ORDER BY CASE WHEN status = 'done' THEN 1 ELSE 0 END, id DESC
+            ORDER BY id DESC
             """
         ).fetchall()
     records = [
@@ -159,6 +164,7 @@ def admin():
             "location": row[15],
             "device_info": row[16],
             "status": row[17] or "pending",
+            "completed_by": row[18] or "",
         }
         for row in rows
     ]
@@ -176,10 +182,7 @@ def verify_admin_csrf_token():
     submitted_token = request.form.get("csrf_token", "")
     expected_token = session.get("admin_csrf_token", "")
     if not expected_token or not hmac.compare_digest(submitted_token, expected_token):
-        abort(
-            400,
-            description="অনুরোধটি যাচাই করা যায়নি। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।",
-        )
+        abort(400, description="Request could not be verified. Refresh the page and try again.")
 
 
 @app.route("/admin/<int:record_id>/update", methods=["POST"])
@@ -190,7 +193,7 @@ def admin_update(record_id):
 
     work_type = request.form.get("work_type", "")
     if work_type not in {"Customer", "TJ Box"}:
-        flash("কাজের ধরন সঠিক নয়।", "error")
+        flash("Invalid work type.", "error")
         return redirect(url_for("admin"))
 
     try:
@@ -227,7 +230,7 @@ def admin_update(record_id):
         ):
             raise ValueError
     except (TypeError, ValueError, json.JSONDecodeError):
-        flash("স্থানাঙ্ক, মিটার রিডিং বা জোড়ার তথ্য সঠিক নয়।", "error")
+        flash("Coordinates, meter readings, or pair details are invalid.", "error")
         return redirect(url_for("admin"))
 
     with closing(sqlite3.connect(DB_NAME)) as conn:
@@ -262,7 +265,7 @@ def admin_update(record_id):
             if cursor.rowcount == 0:
                 abort(404)
 
-    flash("লগের তথ্য আপডেট হয়েছে।", "success")
+    flash("Task updated.", "success")
     return redirect(url_for("admin"))
 
 
@@ -278,18 +281,18 @@ def admin_delete(record_id):
             if cursor.rowcount == 0:
                 abort(404)
 
-    flash("লগটি মুছে ফেলা হয়েছে।", "success")
+    flash("Task deleted.", "success")
     return redirect(url_for("admin"))
 
 
 @app.route("/api/update-status/<int:job_id>", methods=["POST"])
 def update_status(job_id):
     if not session.get("is_admin"):
-        return jsonify({"status": "error", "message": "অ্যাডমিন লগইন প্রয়োজন।"}), 401
+        return jsonify({"status": "error", "message": "Admin login required."}), 401
 
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
-        return jsonify({"status": "error", "message": "সঠিক JSON তথ্য পাঠান।"}), 400
+        return jsonify({"status": "error", "message": "Send valid JSON data."}), 400
 
     expected_token = session.get("admin_csrf_token", "")
     submitted_token = request.headers.get("X-CSRFToken") or data.get("csrf_token", "")
@@ -297,25 +300,38 @@ def update_status(job_id):
         submitted_token, expected_token
     ):
         return jsonify(
-            {"status": "error", "message": "অনুরোধটি যাচাই করা যায়নি।"}
+            {"status": "error", "message": "Request could not be verified."}
         ), 400
 
     new_status = data.get("status")
     if not isinstance(new_status, str) or new_status not in {"pending", "done"}:
-        return jsonify({"status": "error", "message": "সঠিক status নির্বাচন করুন।"}), 400
+        return jsonify({"status": "error", "message": "Choose a valid task status."}), 400
+
+    completed_by = session.get("admin_username") or get_admin_credentials()[0]
+    if new_status == "done" and not completed_by:
+        return jsonify(
+            {"status": "error", "message": "The admin username is not configured."}
+        ), 400
 
     with closing(sqlite3.connect(DB_NAME)) as conn:
         with conn:
             cursor = conn.execute(
-                "UPDATE job_logs SET status = ? WHERE id = ?",
-                (new_status, job_id),
+                "UPDATE job_logs SET status = ?, completed_by = ? WHERE id = ?",
+                (new_status, completed_by if new_status == "done" else None, job_id),
             )
             if cursor.rowcount == 0:
                 return jsonify(
-                    {"status": "error", "message": "কাজটি পাওয়া যায়নি।"}
+                    {"status": "error", "message": "Task not found."}
                 ), 404
 
-    return jsonify({"status": "success", "job_id": job_id, "status_value": new_status})
+    return jsonify(
+        {
+            "status": "success",
+            "job_id": job_id,
+            "status_value": new_status,
+            "completed_by": completed_by if new_status == "done" else "",
+        }
+    )
 
 
 @app.route("/api/save-log", methods=["POST"])
