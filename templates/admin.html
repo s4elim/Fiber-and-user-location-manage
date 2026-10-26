@@ -50,6 +50,14 @@
                     <option value="TJ Box" {% if record.work_type == 'TJ Box' %}selected{% endif %}>TJ Box</option>
                 </select>
             </label>
+            <label class="text-xs text-slate-600">Area
+                <select name="area" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+                    <option value="">Unassigned</option>
+                    {% for area in areas %}
+                    <option value="{{ area }}" {% if record.area == area %}selected{% endif %}>{{ area }}</option>
+                    {% endfor %}
+                </select>
+            </label>
             <label class="text-xs text-slate-600">Customer ID
                 <input name="customer_id" value="{{ record.customer_id or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
             </label>
@@ -95,7 +103,7 @@
 </div>
 {% endmacro %}
 {% macro task_card(record, csrf_token) %}
-<article data-task-id="{{ record.id }}" data-status="{{ record.status }}" class="task-card relative rounded-lg border {{ 'border-emerald-300 bg-emerald-50' if record.status == 'done' else 'border-amber-200 bg-white' }}">
+<article data-task-id="{{ record.id }}" data-status="{{ record.status }}" data-area="{{ record.area }}" class="task-card relative rounded-lg border {{ 'border-emerald-300 bg-emerald-50' if record.status == 'done' else 'border-amber-200 bg-white' }}">
     <div class="pending-card-content {{ 'hidden' if record.status == 'done' else '' }} p-3 pr-20">
         <button type="button" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder" class="absolute right-12 top-2 px-1 text-lg leading-none text-slate-400">⠿</button>
         <button type="button" onclick="toggleEdit({{ record.id }})" title="Edit task" aria-label="Edit task" class="absolute right-7 top-2 rounded p-1 text-sm leading-none text-slate-500 hover:bg-blue-50 hover:text-blue-700">✏️</button>
@@ -107,6 +115,7 @@
             <span class="rounded px-2 py-0.5 text-[11px] font-semibold {{ 'bg-violet-100 text-violet-800' if record.work_type == 'TJ Box' else 'bg-blue-100 text-blue-800' }}">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
             <span class="text-sm font-bold text-slate-900">#{{ record.id }}</span>
             <time class="truncate text-[11px] text-slate-500">{{ record.timestamp }}</time>
+            <span class="ml-auto max-w-24 truncate rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600" title="{{ record.area or 'Unassigned area' }}">{{ record.area or 'Unassigned' }}</span>
         </div>
         <dl class="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
             {% if record.work_type == 'TJ Box' %}
@@ -139,6 +148,7 @@
             <div class="flex min-w-0 items-center gap-1.5">
                 <span class="shrink-0 font-bold">#{{ record.id }}</span>
                 <span class="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
+                <span class="shrink-0 rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">{{ record.area or 'Unassigned' }}</span>
                 <span class="min-w-0 truncate font-medium" title="{{ record.onu_id or record.customer_id or record.splitter or record.location or '' }}">{{ record.onu_id or record.customer_id or record.splitter or record.location or '-' }}</span>
                 {% if record.latitude is not none and record.longitude is not none %}
                 <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" rel="noopener noreferrer" class="shrink-0 font-medium text-emerald-800 underline">Map</a>
@@ -203,21 +213,29 @@
         {% endwith %}
 
         <p id="boardMessage" class="mb-3 hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="status"></p>
+        <label for="areaFilter" class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-600">Area</label>
+        <select id="areaFilter" class="mb-4 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 sm:w-72">
+            <option value="all">All areas</option>
+            {% for area in areas %}
+            <option value="{{ area }}">{{ area }}</option>
+            {% endfor %}
+            <option value="">Unassigned</option>
+        </select>
         <nav class="mb-4 grid grid-cols-2 gap-2" aria-label="Task types">
             <button type="button" id="teamUserTab" aria-selected="true" class="rounded-lg border-2 border-blue-600 bg-white p-2.5 text-left shadow-sm" onclick="showCategory('teamUser')">
                 <span class="block text-sm font-medium text-slate-500">Customer</span>
-                <span class="mt-0.5 block text-xl font-bold text-slate-900">{{ team_user_records|length }}</span>
+                <span data-category-count="teamUser" class="mt-0.5 block text-xl font-bold text-slate-900">{{ team_user_records|length }}</span>
             </button>
             <button type="button" id="tjBoxTab" aria-selected="false" class="rounded-lg border-2 border-transparent bg-white p-2.5 text-left shadow-sm" onclick="showCategory('tjBox')">
                 <span class="block text-sm font-medium text-slate-500">TJ Box</span>
-                <span class="mt-0.5 block text-xl font-bold text-slate-900">{{ tj_box_records|length }}</span>
+                <span data-category-count="tjBox" class="mt-0.5 block text-xl font-bold text-slate-900">{{ tj_box_records|length }}</span>
             </button>
         </nav>
 
         <section id="teamUserCategory">
             <div class="mb-2 flex items-center justify-between">
                 <h2 class="font-semibold text-slate-800">Customer tasks</h2>
-                <span class="text-xs text-slate-500">{{ team_user_records|length }} total</span>
+                <span data-category-total="teamUser" class="text-xs text-slate-500">{{ team_user_records|length }} total</span>
             </div>
             <div class="task-board grid grid-cols-1 items-start gap-3" data-board="teamUser">
                 {{ task_lane(team_user_records, 'teamUser', 'pending') }}
@@ -228,7 +246,7 @@
         <section id="tjBoxCategory" class="hidden">
             <div class="mb-2 flex items-center justify-between">
                 <h2 class="font-semibold text-slate-800">TJ Box tasks</h2>
-                <span class="text-xs text-slate-500">{{ tj_box_records|length }} total</span>
+                <span data-category-total="tjBox" class="text-xs text-slate-500">{{ tj_box_records|length }} total</span>
             </div>
             <div class="task-board grid grid-cols-1 items-start gap-3" data-board="tjBox">
                 {{ task_lane(tj_box_records, 'tjBox', 'pending') }}
@@ -268,11 +286,30 @@
         }
 
         function updateLaneState(list) {
-            const cards = list.querySelectorAll(':scope > .task-card');
+            const cards = list.querySelectorAll(':scope > .task-card:not(.hidden)');
             const emptyMessage = list.querySelector('[data-empty-lane]');
             if (emptyMessage) emptyMessage.classList.toggle('hidden', cards.length > 0);
             const count = list.closest('section').querySelector('header span');
             count.innerText = cards.length;
+        }
+
+        function updateAreaFilter() {
+            const selectedArea = document.getElementById('areaFilter').value;
+            document.querySelectorAll('.task-card').forEach((card) => {
+                card.classList.toggle(
+                    'hidden',
+                    selectedArea !== 'all' && card.dataset.area !== selectedArea
+                );
+            });
+            document.querySelectorAll('.task-list').forEach(updateLaneState);
+            ['teamUser', 'tjBox'].forEach((category) => {
+                const cards = Array.from(
+                    document.querySelectorAll('.task-board[data-board="' + category + '"] .task-card')
+                ).filter((card) => !card.classList.contains('hidden'));
+                document.querySelector('[data-category-count="' + category + '"]').innerText = cards.length;
+                document.querySelector('[data-category-total="' + category + '"]').innerText =
+                    cards.length + ' total';
+            });
         }
 
         function setTaskStatus(card, status, completedBy, completedAt) {
@@ -455,7 +492,9 @@
             tjTab.classList.toggle('border-transparent', showCustomer);
         }
 
+        document.getElementById('areaFilter').addEventListener('change', updateAreaFilter);
         initializeTaskBoards();
+        updateAreaFilter();
     </script>
 </body>
 </html>

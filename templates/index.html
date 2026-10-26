@@ -27,6 +27,17 @@
         </div>
 
         <form id="techForm" class="space-y-4">
+            <section class="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                <label for="area" class="block text-sm font-semibold text-indigo-950">Your area</label>
+                <select id="area" required class="mt-2 w-full rounded-lg border border-indigo-200 bg-white px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">এলাকা বাছাই করুন</option>
+                    {% for area in areas %}
+                    <option value="{{ area }}">{{ area }}</option>
+                    {% endfor %}
+                </select>
+                <p id="areaPreferenceStatus" class="mt-1 text-xs text-slate-600">এই ব্রাউজারে বাছাই করা এলাকা মনে রাখা হবে।</p>
+            </section>
+
             <section class="rounded-xl border border-blue-200 overflow-hidden">
                 <div class="flex justify-between items-center p-3">
                     <span class="text-sm font-semibold text-blue-900">লোকেশন</span>
@@ -140,6 +151,7 @@
         let locationMarker = null;
         let latestCustomerId = '';
         let pairCount = 0;
+        const areaStorageKey = 'technician-area-v1';
         const defaultColors = [
             ['Blue', 'নীল'], ['Orange', 'কমলা'], ['Green', 'সবুজ'],
             ['Brown', 'বাদামি'], ['Slate', 'স্লেট'], ['White', 'সাদা']
@@ -211,6 +223,40 @@
             const start = parseFloat(document.getElementById('start_meter').value) || 0;
             const end = parseFloat(document.getElementById('end_meter').value) || 0;
             document.getElementById('totalFiberDisplay').innerText = Math.abs(end - start);
+        }
+
+        function rememberArea() {
+            const areaSelect = document.getElementById('area');
+            const status = document.getElementById('areaPreferenceStatus');
+            try {
+                if (areaSelect.value) {
+                    localStorage.setItem(areaStorageKey, areaSelect.value);
+                } else {
+                    localStorage.removeItem(areaStorageKey);
+                }
+                status.innerText = 'এই ব্রাউজারে বাছাই করা এলাকা মনে রাখা হবে।';
+                status.classList.remove('text-red-600');
+                status.classList.add('text-slate-600');
+            } catch (error) {
+                status.innerText = 'এই ব্রাউজারে এলাকা সংরক্ষণ করা যায়নি; প্রতিবার বাছাই করুন।';
+                status.classList.remove('text-slate-600');
+                status.classList.add('text-red-600');
+            }
+        }
+
+        function restoreArea() {
+            const areaSelect = document.getElementById('area');
+            try {
+                const savedArea = localStorage.getItem(areaStorageKey);
+                if (Array.from(areaSelect.options).some((option) => option.value === savedArea)) {
+                    areaSelect.value = savedArea;
+                }
+            } catch (error) {
+                const status = document.getElementById('areaPreferenceStatus');
+                status.innerText = 'এই ব্রাউজারে এলাকা সংরক্ষণ করা যায়নি; প্রতিবার বাছাই করুন।';
+                status.classList.remove('text-slate-600');
+                status.classList.add('text-red-600');
+            }
         }
 
         function addPair() {
@@ -332,6 +378,7 @@
             document.getElementById('customSplitterWrap').classList.toggle('hidden', event.target.value !== 'Other');
         });
         document.getElementById('addPair').addEventListener('click', addPair);
+        document.getElementById('area').addEventListener('change', rememberArea);
         document.getElementById('useLatestCustomerId').addEventListener('click', () => {
             document.getElementById('customer_id').value = latestCustomerId;
         });
@@ -358,6 +405,11 @@
                 alert('ম্যাপে লোকেশন বাছুন।');
                 return;
             }
+            const area = document.getElementById('area').value;
+            if (!area) {
+                alert('আপনার এলাকা বাছাই করুন।');
+                return;
+            }
 
             const isCustomer = document.querySelector('input[name="work_type"]:checked').value === 'Customer';
             if (isCustomer && !document.getElementById('customer_id').value.trim()) {
@@ -375,6 +427,7 @@
             const splitter = document.getElementById('splitter_info').value;
             const payload = {
                 work_type: document.querySelector('input[name="work_type"]:checked').value,
+                area,
                 customer_id: isCustomer ? document.getElementById('customer_id').value.trim() : '',
                 location: isCustomer ? '' : document.getElementById('tj_location').value.trim(),
                 latitude,
@@ -409,6 +462,7 @@
                 displayLatestCustomerId(result.customer_id);
                 const savedLocation = [latitude, longitude, document.getElementById('accuracy').value];
                 document.getElementById('techForm').reset();
+                document.getElementById('area').value = area;
                 document.getElementById('pairsList').replaceChildren();
                 pairCount = 0;
                 addPair();
@@ -425,6 +479,7 @@
 
         document.getElementById('techForm').addEventListener('submit', saveLog);
         window.addEventListener('load', () => {
+            restoreArea();
             addPair();
             fetchLocation();
             loadLatestCustomerId().catch((error) => {

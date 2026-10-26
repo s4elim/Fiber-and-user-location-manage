@@ -27,6 +27,15 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE") == "1",
 )
 DB_NAME = "records.db"
+AREAS = (
+    "Kushtia",
+    "Jhenaidah",
+    "Pabna",
+    "Dhaka",
+    "Natore",
+    "Sirajganj",
+    "Ishwardi",
+)
 
 
 def init_db():
@@ -68,6 +77,8 @@ def init_db():
             cursor.execute("ALTER TABLE job_logs ADD COLUMN completed_by TEXT")
         if "completed_at" not in existing_columns:
             cursor.execute("ALTER TABLE job_logs ADD COLUMN completed_at TEXT")
+        if "area" not in existing_columns:
+            cursor.execute("ALTER TABLE job_logs ADD COLUMN area TEXT")
         conn.commit()
 
 
@@ -80,7 +91,7 @@ init_db()
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", areas=AREAS)
 
 
 @app.route("/api/latest-customer-id")
@@ -141,7 +152,7 @@ def admin():
             SELECT id, timestamp, work_type, latitude, longitude, accuracy,
                    start_meter, end_meter, total_fiber, onu_id, customer_name,
                    splitter_info, notes, customer_id, tj_details, location,
-                   device_info, status, completed_by, completed_at
+                   device_info, status, completed_by, completed_at, area
             FROM job_logs
             ORDER BY
                 CASE WHEN status = 'done' THEN 1 ELSE 0 END,
@@ -171,6 +182,7 @@ def admin():
             "status": row[17] or "pending",
             "completed_by": row[18] or "",
             "completed_at": row[19] or "",
+            "area": row[20] or "",
         }
         for row in rows
     ]
@@ -181,6 +193,7 @@ def admin():
         team_user_records=team_user_records,
         tj_box_records=tj_box_records,
         csrf_token=csrf_token,
+        areas=AREAS,
     )
 
 
@@ -200,6 +213,10 @@ def admin_update(record_id):
     work_type = request.form.get("work_type", "")
     if work_type not in {"Customer", "TJ Box"}:
         flash("Invalid work type.", "error")
+        return redirect(url_for("admin"))
+    area = request.form.get("area", "")
+    if area and area not in AREAS:
+        flash("Invalid area.", "error")
         return redirect(url_for("admin"))
 
     try:
@@ -247,7 +264,7 @@ def admin_update(record_id):
                 SET work_type = ?, latitude = ?, longitude = ?, accuracy = ?,
                     start_meter = ?, end_meter = ?, total_fiber = ?, onu_id = ?,
                     customer_name = ?, splitter_info = ?, notes = ?,
-                    customer_id = ?, tj_details = ?, location = ?
+                    customer_id = ?, tj_details = ?, location = ?, area = ?
                 WHERE id = ?
                 """,
                 (
@@ -265,6 +282,7 @@ def admin_update(record_id):
                     request.form.get("customer_id", "").strip(),
                     json.dumps(tj_details, ensure_ascii=False),
                     request.form.get("location", "").strip(),
+                    area,
                     record_id,
                 ),
             )
@@ -385,6 +403,11 @@ def save_log():
     customer_id = str(data.get("customer_id") or "").strip()
     splitter_info = str(data.get("splitter_info") or "").strip()
     location = str(data.get("location") or "").strip()
+    area = data.get("area")
+    if not isinstance(area, str) or area not in AREAS:
+        return jsonify(
+            {"status": "error", "message": "একটি বৈধ এলাকা বাছাই করুন।"}
+        ), 400
     tj_details = data.get("tj_details") or []
     if not isinstance(tj_details, list):
         return jsonify(
@@ -400,8 +423,8 @@ def save_log():
                     timestamp, work_type, latitude, longitude, accuracy,
                     start_meter, end_meter, total_fiber, onu_id,
                     customer_name, splitter_info, notes, customer_id, tj_details,
-                    location, device_info
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    location, device_info, area
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     timestamp,
@@ -420,6 +443,7 @@ def save_log():
                     json.dumps(tj_details, ensure_ascii=False),
                     location,
                     request.headers.get("User-Agent", "")[:500],
+                    area,
                 ),
             )
 
