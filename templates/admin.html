@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>টেকনিশিয়ান লগ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .task-card[draggable="true"] {
+            cursor: grab;
+        }
+
+        .task-card.is-dragging {
+            opacity: 0.45;
+            cursor: grabbing;
+        }
+    </style>
+</head>
+{% macro edit_form(record, csrf_token) %}
+<div id="edit-{{ record.id }}" class="hidden border-t bg-slate-50 p-2">
+    <form method="post" action="{{ url_for('admin_update', record_id=record.id) }}" class="space-y-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <label class="text-xs text-slate-600">কাজের ধরন
+                <select name="work_type" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+                    <option value="Customer" {% if record.work_type != 'TJ Box' %}selected{% endif %}>টিম ইউজার</option>
+                    <option value="TJ Box" {% if record.work_type == 'TJ Box' %}selected{% endif %}>TJ Box</option>
+                </select>
+            </label>
+            <label class="text-xs text-slate-600">কাস্টমার ID
+                <input name="customer_id" value="{{ record.customer_id or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+            <label class="text-xs text-slate-600">ONU ID
+                <input name="onu_id" value="{{ record.onu_id or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+            <label class="text-xs text-slate-600">কাস্টমার / রেফারেন্স
+                <input name="customer_name" value="{{ record.customer_name or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+            <label class="text-xs text-slate-600">Splitter
+                <input name="splitter_info" value="{{ record.splitter or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+            <label class="text-xs text-slate-600">TJ Box লোকেশন
+                <input name="location" value="{{ record.location or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+            <label class="text-xs text-slate-600">Latitude
+                <input name="latitude" type="number" step="any" value="{{ record.latitude if record.latitude is not none else '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+            <label class="text-xs text-slate-600">Longitude
+                <input name="longitude" type="number" step="any" value="{{ record.longitude if record.longitude is not none else '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+            <label class="text-xs text-slate-600">GPS নির্ভুলতা (মিটার)
+                <input name="accuracy" type="number" min="0" step="any" value="{{ record.accuracy or 0 }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+            <label class="text-xs text-slate-600">শুরু মিটার
+                <input name="start_meter" type="number" step="any" value="{{ record.start_meter or 0 }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+            <label class="text-xs text-slate-600">শেষ মিটার
+                <input name="end_meter" type="number" step="any" value="{{ record.end_meter or 0 }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            </label>
+        </div>
+        <label class="block text-xs text-slate-600">জোড়ার তথ্য (JSON)
+            <textarea name="tj_details" rows="2" class="mt-0.5 w-full rounded border px-2 py-1.5 font-mono text-xs">{{ record.pairs | tojson }}</textarea>
+        </label>
+        <label class="block text-xs text-slate-600">নোট
+            <textarea name="notes" rows="2" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">{{ record.notes or '' }}</textarea>
+        </label>
+        <div class="flex justify-end gap-2">
+            <button type="button" onclick="toggleEdit({{ record.id }})" class="rounded border bg-white px-3 py-1.5 text-xs text-slate-700">বাতিল</button>
+            <button type="submit" class="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">পরিবর্তন সেভ</button>
+        </div>
+    </form>
+</div>
+{% endmacro %}
+{% macro task_card(record, csrf_token) %}
+<article draggable="true" data-task-id="{{ record.id }}" data-status="{{ record.status }}" class="task-card overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md {{ 'border-emerald-300 bg-emerald-50' if record.status == 'done' else 'border-amber-200 bg-amber-50' }}" style="{{ 'grid-column: 1 / -1;' if record.status == 'done' else '' }}">
+    <div class="pending-card-content {{ 'hidden' if record.status == 'done' else '' }}">
+        <div class="flex flex-wrap items-center justify-between gap-1.5 border-b border-amber-100 bg-white/70 px-2 py-1.5">
+            <div class="flex items-center gap-1.5">
+                <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ 'bg-violet-100 text-violet-800' if record.work_type == 'TJ Box' else 'bg-blue-100 text-blue-800' }}">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
+                <span class="text-xs font-bold text-slate-800">#{{ record.id }}</span>
+                <time class="text-[10px] text-slate-500">{{ record.timestamp }}</time>
+            </div>
+            <div class="flex min-w-0 items-center gap-1.5">
+                <span class="max-w-20 truncate text-[10px] text-slate-500" title="{{ record.device_info or 'ডিভাইস তথ্য নেই' }}">{{ record.device_info or 'ডিভাইস নেই' }}</span>
+                <button type="button" onclick="toggleEdit({{ record.id }})" class="rounded border bg-white px-2 py-1 text-[11px] text-blue-700">এডিট</button>
+                <form method="post" action="{{ url_for('admin_delete', record_id=record.id) }}" onsubmit="return confirm('এই লগটি মুছে ফেলবেন?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="rounded border bg-white px-2 py-1 text-[11px] text-red-700">ডিলিট</button>
+                </form>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5 p-2 sm:grid-cols-3">
+            {% if record.work_type == 'TJ Box' %}
+            <p class="truncate text-xs text-slate-700" title="{{ record.splitter or '' }}"><span class="text-slate-500">Splitter:</span> {{ record.splitter or '-' }}</p>
+            <p class="truncate text-xs text-slate-700" title="{{ record.location or '' }}"><span class="text-slate-500">লোকেশন:</span> {{ record.location or '-' }}</p>
+            {% else %}
+            <p class="truncate text-xs text-slate-700" title="{{ record.customer_id or '' }}"><span class="text-slate-500">Customer ID:</span> {{ record.customer_id or '-' }}</p>
+            <p class="truncate text-xs text-slate-700" title="{{ record.onu_id or '' }}"><span class="text-slate-500">ONU ID:</span> {{ record.onu_id or '-' }}</p>
+            {% endif %}
+            <p class="truncate text-xs text-slate-700" title="{{ record.customer_name or '' }}"><span class="text-slate-500">{{ 'জোড়া' if record.work_type == 'TJ Box' else 'রেফারেন্স' }}:</span> {{ record.customer_name or (record.pairs|length|string ~ 'টি' if record.work_type == 'TJ Box' and record.pairs else '-') }}</p>
+            <p class="col-span-2 text-xs text-slate-700 sm:col-span-1"><span class="text-slate-500">Fiber:</span> {{ record.start_meter or 0 }} → {{ record.end_meter or 0 }} মি. <span class="font-semibold text-blue-700">(মোট {{ record.fiber or 0 }})</span></p>
+            <div class="flex items-center gap-2 text-xs">
+                {% if record.latitude is not none and record.longitude is not none %}
+                <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" rel="noopener noreferrer" class="font-medium text-emerald-700 underline">Google Maps</a>
+                <button type="button" data-coordinates="{{ record.latitude }}, {{ record.longitude }}" onclick="copyCoordinates(this)" class="text-blue-700 underline">কপি</button>
+                {% else %}
+                <span class="text-slate-400">লোকেশন নেই</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="flex justify-end border-t border-amber-100 px-2 py-1.5">
+            <button type="button" onclick="updateTaskStatus(this, 'done')" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">✓ Mark as Done</button>
+        </div>
+    </div>
+    <div class="done-card-content {{ '' if record.status == 'done' else 'hidden' }} overflow-x-auto">
+        <div class="flex min-w-max items-center gap-3 px-2 py-2 text-xs text-emerald-900">
+            <span class="font-bold">#{{ record.id }}</span>
+            <time class="text-emerald-800">{{ record.timestamp }}</time>
+            <span class="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
+            <span class="max-w-48 truncate">{{ record.onu_id or record.customer_id or record.splitter or record.location or 'তথ্য নেই' }}</span>
+            {% if record.latitude is not none and record.longitude is not none %}
+            <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" rel="noopener noreferrer" class="font-medium underline">Google Maps</a>
+            {% else %}
+            <span class="text-emerald-700">লোকেশন নেই</span>
+            {% endif %}
+            <span class="max-w-20 truncate text-[10px] text-emerald-700" title="{{ record.device_info or 'ডিভাইস তথ্য নেই' }}">{{ record.device_info or 'ডিভাইস নেই' }}</span>
+            <button type="button" onclick="updateTaskStatus(this, 'pending')" class="rounded border border-emerald-300 bg-white px-2 py-1 font-medium text-emerald-800">Undo</button>
+            <button type="button" onclick="toggleEdit({{ record.id }})" class="rounded border border-emerald-300 bg-white px-2 py-1 text-blue-700">এডিট</button>
+            <form method="post" action="{{ url_for('admin_delete', record_id=record.id) }}" onsubmit="return confirm('এই লগটি মুছে ফেলবেন?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="rounded border border-red-200 bg-white px-2 py-1 text-red-700">ডিলিট</button>
+            </form>
+        </div>
+    </div>
+    {{ edit_form(record, csrf_token) }}
+</article>
+{% endmacro %}
+<body class="min-h-screen bg-slate-100 p-3 sm:p-6">
+    <main class="mx-auto max-w-6xl" data-csrf-token="{{ csrf_token }}">
+        <header class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="text-sm font-medium text-blue-700">টেকনিশিয়ান প্যানেল</p>
+                <h1 class="text-2xl font-bold text-slate-900">কাজের লগ</h1>
+            </div>
+            <div class="flex gap-2">
+                <a href="/" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">নতুন এন্ট্রি</a>
+                <form method="post" action="/admin/logout">
+                    <button class="rounded-lg border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">লগআউট</button>
+                </form>
+            </div>
+        </header>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+            <p class="mb-3 rounded-lg px-3 py-2 text-sm {{ 'bg-emerald-50 text-emerald-800' if category == 'success' else 'bg-red-50 text-red-800' }}">{{ message }}</p>
+            {% endfor %}
+        {% endwith %}
+
+        <p id="boardMessage" class="mb-3 hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="status"></p>
+        <nav class="mb-4 grid grid-cols-2 gap-2" aria-label="লগের ক্যাটাগরি">
+            <button type="button" id="teamUserTab" aria-selected="true" class="rounded-lg border-2 border-blue-600 bg-white p-2.5 text-left shadow-sm" onclick="showCategory('teamUser')">
+                <span class="block text-sm font-medium text-slate-500">টিম ইউজার</span>
+                <span class="mt-0.5 block text-xl font-bold text-slate-900">{{ team_user_records|length }}</span>
+            </button>
+            <button type="button" id="tjBoxTab" aria-selected="false" class="rounded-lg border-2 border-transparent bg-white p-2.5 text-left shadow-sm" onclick="showCategory('tjBox')">
+                <span class="block text-sm font-medium text-slate-500">TJ Box</span>
+                <span class="mt-0.5 block text-xl font-bold text-slate-900">{{ tj_box_records|length }}</span>
+            </button>
+        </nav>
+
+        <section id="teamUserCategory">
+            <div class="mb-2 flex items-center justify-between">
+                <h2 class="font-semibold text-slate-800">টিম ইউজারের কাজ</h2>
+                <span class="text-xs text-slate-500">{{ team_user_records|length }} টি</span>
+            </div>
+            <div class="task-board grid grid-cols-1 items-start gap-2 sm:grid-cols-2 lg:grid-cols-3" data-board="teamUser">
+                {% for record in team_user_records %}
+                {{ task_card(record, csrf_token) }}
+                {% else %}
+                <p class="rounded-xl border bg-white p-6 text-center text-sm text-slate-500 sm:col-span-2 lg:col-span-3">টিম ইউজারের লগ নেই।</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section id="tjBoxCategory" class="hidden">
+            <div class="mb-2 flex items-center justify-between">
+                <h2 class="font-semibold text-slate-800">TJ Box-এর কাজ</h2>
+                <span class="text-xs text-slate-500">{{ tj_box_records|length }} টি</span>
+            </div>
+            <div class="task-board grid grid-cols-1 items-start gap-2 sm:grid-cols-2 lg:grid-cols-3" data-board="tjBox">
+                {% for record in tj_box_records %}
+                {{ task_card(record, csrf_token) }}
+                {% else %}
+                <p class="rounded-xl border bg-white p-6 text-center text-sm text-slate-500 sm:col-span-2 lg:col-span-3">TJ Box-এর লগ নেই।</p>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let draggedCard = null;
+
+        function showBoardMessage(message) {
+            const messageBox = document.getElementById('boardMessage');
+            messageBox.innerText = message;
+            messageBox.classList.remove('hidden');
+        }
+
+        function clearBoardMessage() {
+            const messageBox = document.getElementById('boardMessage');
+            messageBox.innerText = '';
+            messageBox.classList.add('hidden');
+        }
+
+        function setTaskStatus(card, status) {
+            const isDone = status === 'done';
+            card.dataset.status = status;
+            card.classList.toggle('border-emerald-300', isDone);
+            card.classList.toggle('bg-emerald-50', isDone);
+            card.classList.toggle('border-amber-200', !isDone);
+            card.classList.toggle('bg-amber-50', !isDone);
+            card.style.gridColumn = isDone ? '1 / -1' : '';
+            card.querySelector('.pending-card-content').classList.toggle('hidden', isDone);
+            card.querySelector('.done-card-content').classList.toggle('hidden', !isDone);
+        }
+
+        async function updateTaskStatus(button, status) {
+            const card = button.closest('.task-card');
+            button.disabled = true;
+            clearBoardMessage();
+            try {
+                const response = await fetch('/api/update-status/' + card.dataset.taskId, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('main').dataset.csrfToken
+                    },
+                    body: JSON.stringify({ status })
+                });
+                const result = await response.json();
+                if (!response.ok || result.status !== 'success') {
+                    throw new Error(result.message || 'কাজের status আপডেট করা যায়নি।');
+                }
+                setTaskStatus(card, result.status_value);
+            } catch (error) {
+                showBoardMessage('ত্রুটি: ' + error.message);
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        function saveBoardOrder(board) {
+            try {
+                const ids = Array.from(board.querySelectorAll(':scope > .task-card'))
+                    .map((card) => card.dataset.taskId);
+                localStorage.setItem('admin-task-order-' + board.dataset.board, JSON.stringify(ids));
+            } catch (error) {
+                showBoardMessage('কার্ডের ক্রম এই ব্রাউজারে সংরক্ষণ করা যায়নি।');
+            }
+        }
+
+        function initializeTaskBoards() {
+            document.querySelectorAll('.task-board').forEach((board) => {
+                const cards = Array.from(board.querySelectorAll(':scope > .task-card'));
+                const cardsById = new Map(cards.map((card) => [card.dataset.taskId, card]));
+                try {
+                    const savedOrder = localStorage.getItem('admin-task-order-' + board.dataset.board);
+                    if (savedOrder) {
+                        const ids = JSON.parse(savedOrder);
+                        if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
+                            throw new Error('কার্ডের সংরক্ষিত ক্রম পড়া যায়নি।');
+                        }
+                        const orderedIds = ids.filter((id) => cardsById.has(id));
+                        cards.forEach((card) => {
+                            if (!orderedIds.includes(card.dataset.taskId)) {
+                                orderedIds.push(card.dataset.taskId);
+                            }
+                        });
+                        orderedIds.forEach((id) => board.appendChild(cardsById.get(id)));
+                    }
+                } catch (error) {
+                    showBoardMessage(error.message || 'কার্ডের সংরক্ষিত ক্রম পড়া যায়নি।');
+                }
+
+                board.addEventListener('dragstart', (event) => {
+                    if (event.target.closest('button, a, form, input, textarea, select')) {
+                        event.preventDefault();
+                        return;
+                    }
+                    draggedCard = event.target.closest('.task-card');
+                    if (!draggedCard) return;
+                    draggedCard.classList.add('is-dragging');
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', draggedCard.dataset.taskId);
+                });
+
+                board.addEventListener('dragover', (event) => {
+                    if (!draggedCard || draggedCard.parentElement !== board) return;
+                    event.preventDefault();
+                    const targetCard = event.target.closest('.task-card');
+                    if (!targetCard || targetCard === draggedCard) return;
+                    const rect = targetCard.getBoundingClientRect();
+                    const after = event.clientY > rect.top + rect.height / 2;
+                    board.insertBefore(draggedCard, after ? targetCard.nextSibling : targetCard);
+                });
+
+                board.addEventListener('drop', (event) => {
+                    if (!draggedCard || draggedCard.parentElement !== board) return;
+                    event.preventDefault();
+                    saveBoardOrder(board);
+                });
+
+                board.addEventListener('dragend', () => {
+                    if (draggedCard) draggedCard.classList.remove('is-dragging');
+                    draggedCard = null;
+                });
+            });
+        }
+
+        function toggleEdit(recordId) {
+            document.getElementById('edit-' + recordId).classList.toggle('hidden');
+        }
+
+        async function copyCoordinates(button) {
+            const coordinates = button.dataset.coordinates;
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(coordinates);
+                } else {
+                    const copyField = document.createElement('textarea');
+                    copyField.value = coordinates;
+                    copyField.style.position = 'fixed';
+                    copyField.style.opacity = '0';
+                    document.body.appendChild(copyField);
+                    copyField.select();
+                    const copied = document.execCommand('copy');
+                    copyField.remove();
+                    if (!copied) throw new Error('কপি করা যায়নি');
+                }
+                const originalText = button.innerText;
+                button.innerText = 'কপি হয়েছে';
+                window.setTimeout(() => { button.innerText = originalText; }, 1500);
+            } catch (error) {
+                alert('স্থানাঙ্ক কপি করা যায়নি। হাতে কপি করুন: ' + coordinates);
+            }
+        }
+
+        function showCategory(category) {
+            const showTeamUser = category === 'teamUser';
+            document.getElementById('teamUserCategory').classList.toggle('hidden', !showTeamUser);
+            document.getElementById('tjBoxCategory').classList.toggle('hidden', showTeamUser);
+
+            const teamTab = document.getElementById('teamUserTab');
+            const tjTab = document.getElementById('tjBoxTab');
+            teamTab.setAttribute('aria-selected', String(showTeamUser));
+            tjTab.setAttribute('aria-selected', String(!showTeamUser));
+            teamTab.classList.toggle('border-blue-600', showTeamUser);
+            teamTab.classList.toggle('border-transparent', !showTeamUser);
+            tjTab.classList.toggle('border-blue-600', !showTeamUser);
+            tjTab.classList.toggle('border-transparent', showTeamUser);
+        }
+
+        initializeTaskBoards();
+    </script>
+</body>
+</html>

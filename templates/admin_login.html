@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
+    <main class="w-full max-w-sm rounded-2xl border bg-white p-6 shadow-lg">
+        <h1 class="mb-5 text-xl font-bold text-gray-800">Admin login</h1>
+        <details class="mb-4 rounded-lg bg-blue-50 p-3 text-xs text-gray-700">
+            <summary class="cursor-pointer font-semibold text-blue-800">Username / password কোথায় সেট করব?</summary>
+            <p class="mt-2">Windows PowerShell-এ নিচের মানগুলো বসিয়ে একই উইন্ডোতে সার্ভার চালান:</p>
+            <pre class="mt-2 overflow-x-auto rounded bg-white p-2">$env:ADMIN_USERNAME = "আপনার ইউজারনেম"
+$env:ADMIN_PASSWORD = "আপনার পাসওয়ার্ড"
+$env:FLASK_SECRET_KEY = [guid]::NewGuid().ToString('N')
+python app.py</pre>
+            <p class="mt-2">PowerShell উইন্ডো বন্ধ হলে আবার সেট করতে হবে।</p>
+        </details>
+        {% if error %}
+        <p class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
+        {% endif %}
+        <form method="post" class="space-y-4">
+            <label class="block text-sm font-medium text-gray-700">
+                Username
+                <input name="username" autocomplete="username" required class="mt-1 w-full rounded-lg border px-3 py-2">
+            </label>
+            <label class="block text-sm font-medium text-gray-700">
+                Password
+                <input name="password" type="password" autocomplete="current-password" required class="mt-1 w-full rounded-lg border px-3 py-2">
+            </label>
+            <button class="w-full rounded-lg bg-blue-600 py-2 font-semibold text-white hover:bg-blue-700">Login</button>
+        </form>
+        <a href="/" class="mt-4 inline-block text-sm text-blue-700 underline">ফর্মে ফিরুন</a>
+    </main>
+</body>
+</html>
