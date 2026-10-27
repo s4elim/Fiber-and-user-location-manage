@@ -26,23 +26,22 @@
 
 **উপায় ক — GitHub দিয়ে (রেকমেন্ডেড)**
 
-Local মেশিনে (Windows) প্রজেক্ট ফোল্ডারে:
+রিপো: `https://github.com/s4elim/Fiber-and-user-location-manage` (branch `main`, **পাবলিক**)। রিমোট আগেই কনফিগার করা, তাই লোকাল থেকে শুধু পুশ করুন:
 ```bash
-git add .
-git commit -m "Deployment ready"
-git branch -M main
-git remote add origin https://github.com/<your-username>/technician_app.git
-git push -u origin main
+git push origin main
 ```
-> `.gitignore` থাকায় `records.db` / `__pycache__` / `instance/` / `.env` পুশ হবে না — এটাই কাম্য।
+> `.gitignore` থাকায় `records.db` / `instance/` / `.env` পুশ হয় না — পাবলিক রিপোতেও কোনো গোপন তথ্য (পাসওয়ার্ড হ্যাশ, সেশন কী) যায় না।
 
-তারপর PythonAnywhere-এ **Consoles → Bash** খুলে:
-
+তারপর PythonAnywhere-এ **Consoles → Bash** খুলে (প্রথমবার এক কমান্ডে সব):
 ```bash
 cd ~
-git clone https://github.com/<your-username>/technician_app.git
-ls technician_app
+git clone https://github.com/s4elim/Fiber-and-user-location-manage.git technician_app
+cd technician_app
+mkvirtualenv --python=/usr/bin/python3.10 venv
+pip install -r requirements.txt
+python -c "import app; print('DB:', app.DB_NAME)"
 ```
+শেষ লাইনে `/home/<username>/technician_app/records.db` প্রিন্ট হলে ধাপ ৩–৬ এমনিতেই শেষ — সরাসরি Web ট্যাবে যান। পাবলিক রিপো হওয়ায় কোনো GitHub টোকেন লাগবে না।
 
 **উপায় খ — ফাইল আপলোড (Git চাই না)**
 
@@ -65,7 +64,9 @@ python -c "import app; print('DB:', app.DB_NAME)"
 
 ### ধাপ ৪ — Web app তৈরি
 
-**Web** ট্যাব → **Add a new web app** → **Next** (ডিফল্ট ডোমেইনটাই রাখুন) → **Manual configuration** (Flask অপশন নয়) → **Python 3.10** → **Next**।
+**Web** ট্যাব → **Add a new web app** → **Next** (ডিফল্ট ডোমেইনটাই রাখুন) → **Manual configuration** (Flask টেমপ্লেট নয়) → **Python 3.10** → **Next**।
+
+> ⚠️ Web অ্যাপে যে Python ভার্সন বাছবেন, virtualenv-এ **ঠিক সেই ভার্সনই** দিতে হবে (৩.১০ বাছলে `--python=/usr/bin/python3.10`, ৩.১৩ হলে `python3.13`)। মিল না হলে সার্ভার চালু হবে না। ফ্রি টিয়ারে ভার্সন বদলাতে "Web" ট্যাব থেকেই নতুন করে বাছতে হয়।
 
 তারপর ওই পেজেই:
 - **Source code**: `/home/<username>/technician_app`
@@ -119,6 +120,19 @@ Web ট্যাবের নিচে **Environment variables** সেকশন
 - `/admin/login` → মেইন অ্যাডমিন দিয়ে লগইন হয়
 - ফর্ম থেকে একটা টেস্ট জব সেভ হয় → `/admin`-এ দেখা যায়
 - মোবাইলে GPS লোকেশন আসে (HTTPS থাকায় ব্রাউজার লোকেশন পারমিশন দেবে)
+
+### পরে কোড বদলালে (আপডেট দেওয়ার নিয়ম)
+
+```bash
+# ১) লোকাল মেশিনে
+git push origin main
+
+# ২) PythonAnywhere Bash-এ
+cd ~/technician_app && git pull
+
+# ৩) Web ট্যাবে "Reload" ক্লিক
+```
+শুধু টেমপ্লেট/HTML বদলালেও Reload লাগবে। ভেরিয়েবল বদলালে সেটিংস সেভ করে আবার Reload দিন।
 
 ### ফ্রি টিয়ারের সীমা (জেনে রাখুন)
 
