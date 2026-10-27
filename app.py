@@ -266,17 +266,25 @@ def admin_login():
                     normalize_mobile(submitted_username) or submitted_username,
                 ),
             ).fetchone()
+            has_main_admin = (
+                conn.execute(
+                    "SELECT 1 FROM admin_accounts WHERE role = 'main' LIMIT 1"
+                ).fetchone()
+                is not None
+            )
         if account and check_password_hash(account[1], submitted_password):
             session.clear()
             session["admin_account_id"] = account[0]
             session["admin_csrf_token"] = secrets.token_urlsafe(32)
             return redirect(url_for("admin"))
-        error = (
-            "No admin account is configured. Set ADMIN_USERNAME and ADMIN_PASSWORD "
-            "before starting the app."
-            if account is None
-            else "Incorrect username or password."
-        )
+        if not has_main_admin:
+            # Setup problem, not a wrong password: surface it in the server log only,
+            # so the login page cannot be used to enumerate valid usernames.
+            app.logger.warning(
+                "Login attempted but no main admin exists. Set ADMIN_USERNAME and "
+                "ADMIN_PASSWORD (WSGI file or environment) and reload the app."
+            )
+        error = "Incorrect username or password."
 
     return render_template("admin_login.html", error=error)
 

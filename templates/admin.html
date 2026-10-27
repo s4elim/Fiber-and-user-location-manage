@@ -181,7 +181,7 @@
                 {% if status == 'done' %}<p class="text-[10px] text-slate-500">Latest completed first</p>{% endif %}
             </div>
         </div>
-        <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ 'bg-amber-100 text-amber-800' if status == 'pending' else 'bg-emerald-100 text-emerald-800' }}">{{ records|selectattr('status', 'equalto', status)|list|length }}</span>
+        <span data-lane-count class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ 'bg-amber-100 text-amber-800' if status == 'pending' else 'bg-emerald-100 text-emerald-800' }}">{{ records|selectattr('status', 'equalto', status)|list|length }}</span>
     </header>
     <div class="task-list min-h-12 {{ 'pending-task-list' if status == 'pending' else 'space-y-2' }}" data-order-key="{{ category }}-{{ status }}">
         {% for record in records if record.status == status %}
@@ -294,8 +294,8 @@
             const cards = list.querySelectorAll(':scope > .task-card:not(.hidden)');
             const emptyMessage = list.querySelector('[data-empty-lane]');
             if (emptyMessage) emptyMessage.classList.toggle('hidden', cards.length > 0);
-            const count = list.closest('section').querySelector('header span');
-            count.innerText = cards.length;
+            const count = list.closest('section').querySelector('[data-lane-count]');
+            if (count) count.innerText = cards.length;
         }
 
         function updateAreaFilter() {
