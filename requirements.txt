@@ -1,1 +1,11 @@
-flask
+# Runtime dependencies for the technician attendance / TJ Box app.
+Flask>=3.0,<4.0
+Werkzeug>=3.1
+
+# Timezone database, needed so APP_TIMEZONE (default Asia/Dhaka) resolves
+# on machines without a system tz database (e.g. Windows).
+tzdata>=2024.1
+
+# Only needed on hosts that run WSGI through gunicorn (Render, Railway, VPS).
+# PythonAnywhere provides its own WSGI server, so this line is harmless there.
+gunicorn>=21.2; sys_platform != "win32"

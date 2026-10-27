@@ -1,6 +1,25 @@
+# Live database (never commit real job logs / password hashes)
 records.db
+records.db-journal
+records.db-wal
+records.db-shm
+
+# Local secrets and generated files
+instance/
+.env
+.env.*
+!.env.example
+
+# Python
 __pycache__/
 *.py[cod]
-.env
+*.egg-info/
 .venv/
 venv/
+env/
+
+# Editor / OS
+.kombai/tmp/
+.DS_Store
+Thumbs.db
+*.log

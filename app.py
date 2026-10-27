@@ -7,6 +7,7 @@ import secrets
 import sqlite3
 from contextlib import closing
 from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import (
     Flask,
@@ -21,14 +22,68 @@ from flask import (
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
+
+
+def load_secret_key():
+    """Return a stable secret key so sessions survive restarts and reloads."""
+    key_from_env = os.environ.get("FLASK_SECRET_KEY", "").strip()
+    if key_from_env:
+        return key_from_env
+
+    key_path = os.path.join(INSTANCE_DIR, "secret_key")
+    try:
+        with open(key_path, encoding="utf-8") as key_file:
+            stored_key = key_file.read().strip()
+        if stored_key:
+            return stored_key
+    except OSError:
+        pass
+
+    generated_key = secrets.token_hex(32)
+    try:
+        os.makedirs(INSTANCE_DIR, exist_ok=True)
+        with open(key_path, "w", encoding="utf-8") as key_file:
+            key_file.write(generated_key)
+    except OSError:
+        # Read-only filesystem: fall back to a per-process key.
+        pass
+    return generated_key
+
+
+def resolve_database_path():
+    """Absolute SQLite path so the database is found from any working directory."""
+    configured_path = os.environ.get("DATABASE_PATH", "").strip()
+    if not configured_path:
+        return os.path.join(BASE_DIR, "records.db")
+    if not os.path.isabs(configured_path):
+        return os.path.join(BASE_DIR, configured_path)
+    return configured_path
+
+
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+app.secret_key = load_secret_key()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE") == "1",
 )
-DB_NAME = "records.db"
+DB_NAME = resolve_database_path()
+
+try:
+    LOCAL_TZ = ZoneInfo(os.environ.get("APP_TIMEZONE", "Asia/Dhaka"))
+except (ZoneInfoNotFoundError, ValueError):
+    LOCAL_TZ = None
+
+
+def now_local():
+    """Current time in LOCAL_TZ, because servers usually run on UTC."""
+    if LOCAL_TZ is None:
+        return datetime.now()
+    return datetime.now(LOCAL_TZ)
+
+
 AREAS = (
     "Kushtia",
     "Jhenaidah",
@@ -41,6 +96,10 @@ AREAS = (
 
 
 def init_db():
+    database_dir = os.path.dirname(DB_NAME)
+    if database_dir:
+        os.makedirs(database_dir, exist_ok=True)
+
     with closing(sqlite3.connect(DB_NAME)) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -701,7 +760,7 @@ def update_status(job_id):
         ), 400
 
     completed_at = (
-        datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+        now_local().strftime("%Y-%m-%d %I:%M:%S %p")
         if new_status == "done"
         else None
     )
@@ -777,7 +836,7 @@ def save_log():
             {"status": "error", "message": "জোড়ার তথ্য সঠিক নয়।"}
         ), 400
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+    timestamp = now_local().strftime("%Y-%m-%d %I:%M:%S %p")
     with closing(sqlite3.connect(DB_NAME)) as conn:
         with conn:
             conn.execute(
@@ -820,8 +879,10 @@ def save_log():
 
 
 if __name__ == "__main__":
+    # Local development server only. In production the app is served through
+    # wsgi.py (PythonAnywhere / gunicorn), so this block never runs there.
     app.run(
-        host="172.31.1.2",
-        port=5000,
+        host=os.environ.get("FLASK_HOST", "0.0.0.0"),
+        port=int(os.environ.get("PORT") or os.environ.get("FLASK_PORT", "5000")),
         debug=os.environ.get("FLASK_DEBUG") == "1",
     )
