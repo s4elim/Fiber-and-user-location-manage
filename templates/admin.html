@@ -3,503 +3,804 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Technician Work Board</title>
+    <title>Task Board · Field Log</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap">
     <style>
+        :root {
+            --ground: #F4F1E9;
+            --surface: #FFFFFF;
+            --ink: #16302A;
+            --line: rgba(22, 48, 42, 0.14);
+            --line-strong: rgba(22, 48, 42, 0.24);
+            --action: #1B7F52;
+            --action-deep: #146244;
+            --action-soft: #EAF3ED;
+            --danger: #B3261E;
+            --ring: rgba(27, 127, 82, 0.16);
+            --radius-card: 18px;
+            --shadow-card: 0 1px 2px rgba(22, 48, 42, 0.04), 0 12px 30px -24px rgba(22, 48, 42, 0.45);
+        }
+
+        body {
+            background: var(--ground);
+            color: var(--ink);
+            font-family: 'Hind Siliguri', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow-card);
+        }
+
+        .field {
+            background: var(--surface);
+            color: var(--ink);
+            border: 1.5px solid var(--line-strong);
+            border-radius: 12px;
+            transition: border-color .18s ease, box-shadow .18s ease;
+        }
+
+        .field:focus,
+        .field:focus-visible {
+            outline: none;
+            border-color: var(--action);
+            box-shadow: 0 0 0 4px var(--ring);
+        }
+
+        .btn {
+            transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, transform .16s ease;
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-primary {
+            background: var(--action);
+            color: #FFFFFF;
+            box-shadow: 0 1px 2px rgba(22, 48, 42, 0.16), 0 8px 18px -12px rgba(20, 98, 68, 0.75);
+        }
+
+        .btn-primary:hover {
+            background: var(--action-deep);
+        }
+
+        .btn-ghost {
+            background: var(--surface);
+            color: var(--ink);
+            border: 1px solid var(--line-strong);
+        }
+
+        .btn-ghost:hover {
+            background: var(--action-soft);
+            border-color: rgba(27, 127, 82, 0.3);
+            color: var(--action-deep);
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: .25rem;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.5;
+            white-space: nowrap;
+        }
+
+        .chip-soft {
+            background: rgba(22, 48, 42, 0.06);
+            color: rgba(22, 48, 42, 0.72);
+        }
+
+        .chip-customer {
+            background: var(--action-soft);
+            color: var(--action-deep);
+        }
+
+        .chip-tj {
+            background: #F7EEDC;
+            color: #7A5410;
+        }
+
+        .chip-danger {
+            background: #FBEAE8;
+            color: var(--danger);
+        }
+
+        .lane {
+            background: rgba(22, 48, 42, 0.035);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 10px;
+        }
+
+        .task-card {
+            transition: box-shadow .18s ease, background-color .18s ease;
+            padding: .625rem;
+        }
+
+        .task-card.is-done {
+            background: #F7FBF8;
+            padding: .375rem;
+        }
+
+        .task-card.is-dragging {
+            opacity: 0.5;
+        }
+
         .task-card [data-drag-handle] {
             cursor: grab;
             user-select: none;
         }
 
+        .tab {
+            transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
+        }
+
+        .tab.is-active {
+            background: var(--surface);
+            color: var(--ink);
+            box-shadow: 0 1px 3px rgba(22, 48, 42, 0.18);
+        }
+
         .completed-task {
             display: grid;
-            grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+            grid-template-columns: 1.5rem minmax(0, 1fr) auto;
             align-items: center;
-            gap: 0.5rem;
+            gap: .5rem;
         }
 
-        .task-card.is-dragging {
-            opacity: 0.45;
-            cursor: grabbing;
-        }
-
-        @media (min-width: 1024px) {
-            .task-board {
-                grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr) !important;
-            }
-        }
-
-        @media (min-width: 640px) {
-            .pending-task-list {
-                display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 0.5rem;
-                align-items: start;
-            }
+        [hidden] {
+            display: none !important;
         }
     </style>
 </head>
+<body class="min-h-screen">
 {% macro edit_form(record, csrf_token) %}
-<div id="edit-{{ record.id }}" class="hidden border-t bg-slate-50 p-2">
-    <form method="post" action="{{ url_for('admin_update', record_id=record.id) }}" class="space-y-2">
+<div id="edit-{{ record.id }}" class="mt-2 border-t border-[#16302A]/10 pt-3" hidden>
+    <form method="post" action="{{ url_for('admin_update', record_id=record.id) }}" class="space-y-3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            <label class="text-xs text-slate-600">Work type
-                <select name="work_type" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+        <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Work type
+                <select name="work_type" class="field mt-1 h-9 w-full px-2 text-[13px]">
                     <option value="Customer" {% if record.work_type != 'TJ Box' %}selected{% endif %}>Customer</option>
                     <option value="TJ Box" {% if record.work_type == 'TJ Box' %}selected{% endif %}>TJ Box</option>
                 </select>
             </label>
-            <label class="text-xs text-slate-600">Area
-                <select name="area" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Area
+                <select name="area" class="field mt-1 h-9 w-full px-2 text-[13px]">
                     <option value="">Unassigned</option>
                     {% for area in areas %}
                     <option value="{{ area }}" {% if record.area == area %}selected{% endif %}>{{ area }}</option>
                     {% endfor %}
                 </select>
             </label>
-            <label class="text-xs text-slate-600">Customer ID
-                <input name="customer_id" value="{{ record.customer_id or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Customer ID
+                <input name="customer_id" value="{{ record.customer_id or '' }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
-            <label class="text-xs text-slate-600">ONU ID
-                <input name="onu_id" value="{{ record.onu_id or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">ONU ID
+                <input name="onu_id" value="{{ record.onu_id or '' }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
-            <label class="text-xs text-slate-600">Customer / reference
-                <input name="customer_name" value="{{ record.customer_name or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Customer / reference
+                <input name="customer_name" value="{{ record.customer_name or '' }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
-            <label class="text-xs text-slate-600">Splitter
-                <input name="splitter_info" value="{{ record.splitter or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Splitter
+                <input name="splitter_info" value="{{ record.splitter or '' }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
-            <label class="text-xs text-slate-600">TJ Box location
-                <input name="location" value="{{ record.location or '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">TJ Box location
+                <input name="location" value="{{ record.location or '' }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
-            <label class="text-xs text-slate-600">Latitude
-                <input name="latitude" type="number" step="any" value="{{ record.latitude if record.latitude is not none else '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Latitude
+                <input name="latitude" type="number" step="any" value="{{ record.latitude if record.latitude is not none else '' }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
-            <label class="text-xs text-slate-600">Longitude
-                <input name="longitude" type="number" step="any" value="{{ record.longitude if record.longitude is not none else '' }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Longitude
+                <input name="longitude" type="number" step="any" value="{{ record.longitude if record.longitude is not none else '' }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
-            <label class="text-xs text-slate-600">GPS accuracy (m)
-                <input name="accuracy" type="number" min="0" step="any" value="{{ record.accuracy or 0 }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">GPS accuracy (m)
+                <input name="accuracy" type="number" min="0" step="any" value="{{ record.accuracy or 0 }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
-            <label class="text-xs text-slate-600">Start meter
-                <input name="start_meter" type="number" step="any" value="{{ record.start_meter or 0 }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Start meter
+                <input name="start_meter" type="number" step="any" value="{{ record.start_meter or 0 }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
-            <label class="text-xs text-slate-600">End meter
-                <input name="end_meter" type="number" step="any" value="{{ record.end_meter or 0 }}" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">
+            <label class="block text-[11.5px] font-semibold text-[#16302A]/75">End meter
+                <input name="end_meter" type="number" step="any" value="{{ record.end_meter or 0 }}" class="field mt-1 h-9 w-full px-2 text-[13px]">
             </label>
         </div>
-        <label class="block text-xs text-slate-600">Pair details (JSON)
-            <textarea name="tj_details" rows="2" class="mt-0.5 w-full rounded border px-2 py-1.5 font-mono text-xs">{{ record.pairs | tojson }}</textarea>
+        <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Pair details (JSON)
+            <textarea name="tj_details" rows="2" class="field mt-1 w-full px-2 py-1.5 font-mono text-[12px]">{{ record.pairs | tojson }}</textarea>
         </label>
-        <label class="block text-xs text-slate-600">Notes
-            <textarea name="notes" rows="2" class="mt-0.5 w-full rounded border px-2 py-1.5 text-sm">{{ record.notes or '' }}</textarea>
+        <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Notes
+            <textarea name="notes" rows="2" class="field mt-1 w-full px-2 py-1.5 text-[13px]">{{ record.notes or '' }}</textarea>
         </label>
         <div class="flex justify-end gap-2">
-            <button type="button" onclick="toggleEdit({{ record.id }})" class="rounded border bg-white px-3 py-1.5 text-xs text-slate-700">Cancel</button>
-            <button type="submit" class="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">Save changes</button>
+            <button type="button" onclick="toggleEdit({{ record.id }})" class="btn btn-ghost h-9 rounded-xl px-3 text-[12.5px] font-semibold">Cancel</button>
+            <button type="submit" class="btn btn-primary h-9 rounded-xl px-3.5 text-[12.5px] font-semibold">Save changes</button>
         </div>
     </form>
 </div>
 {% endmacro %}
-{% macro task_card(record, csrf_token) %}
-<article data-task-id="{{ record.id }}" data-status="{{ record.status }}" data-area="{{ record.area }}" class="task-card relative rounded-lg border {{ 'border-emerald-300 bg-emerald-50' if record.status == 'done' else 'border-amber-200 bg-white' }}">
-    <div class="pending-card-content {{ 'hidden' if record.status == 'done' else '' }} p-3 pr-20">
-        <button type="button" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder" class="absolute right-12 top-2 px-1 text-lg leading-none text-slate-400">⠿</button>
-        <button type="button" onclick="toggleEdit({{ record.id }})" title="Edit task" aria-label="Edit task" class="absolute right-7 top-2 rounded p-1 text-sm leading-none text-slate-500 hover:bg-blue-50 hover:text-blue-700">✏️</button>
-        <form method="post" action="{{ url_for('admin_delete', record_id=record.id) }}" onsubmit="return confirm('Delete this task?');" class="absolute right-1 top-2">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" title="Delete task" aria-label="Delete task" class="rounded p-1 text-sm leading-none text-slate-500 hover:bg-red-50 hover:text-red-700">🗑️</button>
-        </form>
-        <div class="mb-2 flex items-center gap-2 border-b border-slate-100 pb-2">
-            <span class="rounded px-2 py-0.5 text-[11px] font-semibold {{ 'bg-violet-100 text-violet-800' if record.work_type == 'TJ Box' else 'bg-blue-100 text-blue-800' }}">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
-            <span class="text-sm font-bold text-slate-900">#{{ record.id }}</span>
-            <time class="truncate text-[11px] text-slate-500">{{ record.timestamp }}</time>
-            <span class="ml-auto max-w-24 truncate rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600" title="{{ record.area or 'Unassigned area' }}">{{ record.area or 'Unassigned' }}</span>
+{% macro task_card(record, csrf_token, initially_hidden=false) %}
+<article data-task-id="{{ record.id }}" data-status="{{ record.status }}" data-area="{{ record.area }}" class="task-card card min-w-0 {{ 'hidden' if initially_hidden else '' }} {{ 'is-done' if record.status == 'done' else '' }}">
+    <div class="pending-card-content {{ 'hidden' if record.status == 'done' else '' }}">
+        <div class="flex items-center gap-1.5">
+            <button type="button" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder" class="btn -ml-1 grid h-7 w-7 place-items-center rounded-lg text-[#16302A]/75 hover:bg-[#F4F1E9] hover:text-[#16302A]/70">
+                <i class="ph-bold ph-dots-six-vertical text-[15px]" aria-hidden="true"></i>
+            </button>
+            <span class="text-[15px] font-bold leading-none tabular-nums">#{{ record.id }}</span>
+            <span class="chip {{ 'chip-tj' if record.work_type == 'TJ Box' else 'chip-customer' }}">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
+            <span class="chip chip-soft ml-auto max-w-24 truncate" title="{{ record.area or 'Unassigned area' }}">{{ record.area or 'Unassigned' }}</span>
         </div>
-        <dl class="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
+        <time class="mt-1 block text-[11.5px] tabular-nums leading-none text-[#16302A]/72">{{ record.timestamp }}</time>
+
+        <dl class="mt-2.5 grid grid-cols-[5.25rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-[13px] leading-tight">
             {% if record.work_type == 'TJ Box' %}
-            <dt class="text-slate-500">Splitter</dt><dd class="truncate font-medium text-slate-800" title="{{ record.splitter or '' }}">{{ record.splitter or '-' }}</dd>
-            <dt class="text-slate-500">Location</dt><dd class="truncate font-medium text-slate-800" title="{{ record.location or '' }}">{{ record.location or '-' }}</dd>
+            <dt class="text-[#16302A]/72">Splitter</dt><dd class="truncate font-medium" title="{{ record.splitter or '' }}">{{ record.splitter or '-' }}</dd>
+            <dt class="text-[#16302A]/72">Location</dt><dd class="truncate font-medium" title="{{ record.location or '' }}">{{ record.location or '-' }}</dd>
+            <dt class="text-[#16302A]/72">Pairs</dt><dd class="font-medium">{{ record.pairs | length }}</dd>
             {% else %}
-            <dt class="text-slate-500">Customer ID</dt><dd class="truncate font-medium text-slate-800" title="{{ record.customer_id or '' }}">{{ record.customer_id or '-' }}</dd>
-            <dt class="text-slate-500">ONU ID</dt><dd class="truncate font-medium text-slate-800" title="{{ record.onu_id or '' }}">{{ record.onu_id or '-' }}</dd>
-            <dt class="text-slate-500">Reference</dt><dd class="truncate font-medium text-slate-800" title="{{ record.customer_name or '' }}">{{ record.customer_name or '-' }}</dd>
+            <dt class="text-[#16302A]/72">Customer</dt><dd class="truncate font-medium" title="{{ record.customer_id or '' }}">{{ record.customer_id or '-' }}</dd>
+            <dt class="text-[#16302A]/72">ONU</dt><dd class="truncate font-medium" title="{{ record.onu_id or '' }}">{{ record.onu_id or '-' }}</dd>
+            <dt class="text-[#16302A]/72">Reference</dt><dd class="truncate font-medium" title="{{ record.customer_name or '' }}">{{ record.customer_name or '-' }}</dd>
             {% endif %}
-            <dt class="text-slate-500">Fiber (m)</dt><dd class="truncate font-medium text-slate-800">{{ record.start_meter or 0 }} → {{ record.end_meter or 0 }} <span class="text-slate-500">(Total {{ record.fiber or 0 }})</span></dd>
-            <dt class="text-slate-500">Map</dt>
-            <dd class="flex items-center gap-2">
-                {% if record.latitude is not none and record.longitude is not none %}
-                <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" rel="noopener noreferrer" class="font-medium text-emerald-700 underline">Open Google Maps</a>
-                <button type="button" data-coordinates="{{ record.latitude }}, {{ record.longitude }}" onclick="copyCoordinates(this)" class="text-blue-700 underline">Copy</button>
-                {% else %}
-                <span class="text-slate-400">No coordinates</span>
-                {% endif %}
-            </dd>
-            <dt class="text-slate-500">Device</dt><dd class="truncate text-[10px] text-slate-500" title="{{ record.device_info or 'Device information unavailable' }}">{{ record.device_info or 'Not available' }}</dd>
+            <dt class="text-[#16302A]/72">Fiber</dt><dd class="truncate tabular-nums font-medium">{{ record.start_meter or 0 }} → {{ record.end_meter or 0 }} <span class="text-[#16302A]/72">({{ record.fiber or 0 }} m)</span></dd>
         </dl>
-        <div class="mt-3 border-t border-slate-100 pt-2">
-            <button type="button" onclick="updateTaskStatus(this, 'done')" class="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">✓ Mark as done</button>
+        <p class="mt-1 max-w-[190px] truncate text-[9.5px] leading-none text-[#16302A]/70 sm:max-w-[240px]" title="{{ record.device_info or 'Device information unavailable' }}">
+            <i class="ph-bold ph-device-mobile mr-1 text-[10px]" aria-hidden="true"></i>{{ record.device_info or 'Device not available' }}
+        </p>
+
+        <div class="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-[#16302A]/10 pt-2.5">
+            <button type="button" onclick="updateTaskStatus(this, 'done')" class="btn btn-primary flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
+                <i class="ph-bold ph-check text-[14px]" aria-hidden="true"></i>Mark done
+            </button>
+            {% if record.latitude is not none and record.longitude is not none %}
+            <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-[12.5px] font-medium">
+                <i class="ph-bold ph-map-trifold text-[14px]" aria-hidden="true"></i>Map
+            </a>
+            <button type="button" data-coordinates="{{ record.latitude }}, {{ record.longitude }}" onclick="copyCoordinates(this)" class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-[12.5px] font-medium">
+                <i class="ph-bold ph-copy text-[14px]" aria-hidden="true"></i><span>Copy</span>
+            </button>
+            {% else %}
+            <span class="text-[12px] text-[#16302A]/70">No coordinates</span>
+            {% endif %}
+            <div class="ml-auto flex items-center gap-1">
+                <button type="button" onclick="toggleEdit({{ record.id }})" class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-[12.5px] font-medium">
+                    <i class="ph-bold ph-pencil-simple text-[14px]" aria-hidden="true"></i>Edit
+                </button>
+                <form method="post" action="{{ url_for('admin_delete', record_id=record.id) }}" onsubmit="return confirm('Send a delete request for this task?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" title="Delete task" aria-label="Delete task" class="btn grid h-9 w-9 place-items-center rounded-xl text-[#16302A]/75 hover:bg-[#FBEAE8] hover:text-[#B3261E]">
+                        <i class="ph-bold ph-trash text-[15px]" aria-hidden="true"></i>
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
-    <div class="done-card-content {{ '' if record.status == 'done' else 'hidden' }} completed-task min-h-[4.5rem] p-2 pr-14 text-xs text-emerald-950">
-        <button type="button" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder" class="row-span-2 rounded px-1 text-lg leading-none text-emerald-700 hover:bg-emerald-100">⠿</button>
+
+    <div class="done-card-content completed-task {{ '' if record.status == 'done' else 'hidden' }}">
+        <button type="button" data-drag-handle title="Drag to reorder" aria-label="Drag to reorder" class="btn grid h-6 w-6 place-items-center rounded-lg text-[#16302A]/60 hover:bg-[#EAF3ED] hover:text-[#146244]">
+            <i class="ph-bold ph-dots-six-vertical text-[13px]" aria-hidden="true"></i>
+        </button>
         <div class="min-w-0">
             <div class="flex min-w-0 items-center gap-1.5">
-                <span class="shrink-0 font-bold">#{{ record.id }}</span>
-                <span class="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
-                <span class="shrink-0 rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">{{ record.area or 'Unassigned' }}</span>
-                <span class="min-w-0 truncate font-medium" title="{{ record.onu_id or record.customer_id or record.splitter or record.location or '' }}">{{ record.onu_id or record.customer_id or record.splitter or record.location or '-' }}</span>
+                <span class="shrink-0 text-[13px] font-bold tabular-nums">#{{ record.id }}</span>
+                <span class="chip shrink-0 {{ 'chip-tj' if record.work_type == 'TJ Box' else 'chip-customer' }}">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
+                <span class="chip chip-soft shrink-0">{{ record.area or 'Unassigned' }}</span>
+                <span class="min-w-0 truncate text-[12.5px] font-medium" title="{{ record.onu_id or record.customer_id or record.splitter or record.location or '' }}">{{ record.onu_id or record.customer_id or record.splitter or record.location or '-' }}</span>
+            </div>
+            <div class="mt-0.5 flex min-w-0 items-center gap-2 text-[11px] leading-none text-[#16302A]/70">
+                <time class="shrink-0 tabular-nums" data-completed-at>{{ record.completed_at or record.timestamp }}</time>
+                <span class="min-w-0 truncate {{ 'hidden' if not record.completed_by else '' }}" data-completed-by title="{{ 'Completed by ' ~ record.completed_by if record.completed_by else '' }}">{{ record.completed_by }}</span>
                 {% if record.latitude is not none and record.longitude is not none %}
-                <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" rel="noopener noreferrer" class="shrink-0 font-medium text-emerald-800 underline">Map</a>
+                <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" rel="noopener noreferrer" class="shrink-0 font-semibold text-[#146244] underline decoration-[#146244]/35 underline-offset-2">Map</a>
                 {% endif %}
             </div>
-            <div class="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-emerald-800">
-                <time class="shrink-0" data-completed-at>{{ record.completed_at or record.timestamp }}</time>
-                <span class="min-w-0 truncate" data-completed-by title="Completed by {{ record.completed_by or 'Unknown' }}">By {{ record.completed_by or 'Unknown' }}</span>
-            </div>
         </div>
-        <button type="button" onclick="updateTaskStatus(this, 'pending')" class="shrink-0 rounded-md border border-emerald-300 bg-white px-2 py-1.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100">Undo</button>
+        <button type="button" onclick="updateTaskStatus(this, 'pending')" class="btn btn-ghost h-7 shrink-0 rounded-lg px-2 text-[11.5px] font-semibold">Undo</button>
     </div>
-    <div class="done-card-actions {{ '' if record.status == 'done' else 'hidden' }} absolute right-1 top-1 flex items-center gap-0.5">
-        <button type="button" onclick="toggleEdit({{ record.id }})" title="Edit task" aria-label="Edit task" class="rounded p-1 text-sm leading-none text-slate-500 hover:bg-blue-50 hover:text-blue-700">✏️</button>
-        <form method="post" action="{{ url_for('admin_delete', record_id=record.id) }}" onsubmit="return confirm('Delete this task?');">
+
+    <div class="done-card-actions {{ '' if record.status == 'done' else 'hidden' }} mt-1 flex items-center justify-end gap-3">
+        <button type="button" onclick="toggleEdit({{ record.id }})" class="btn rounded-md px-2 py-1 text-[10.5px] font-medium text-[#16302A]/70 hover:bg-[#EAF3ED] hover:text-[#146244]">
+            Edit
+        </button>
+        <form method="post" action="{{ url_for('admin_delete', record_id=record.id) }}" onsubmit="return confirm('Send a delete request for this task?');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" title="Delete task" aria-label="Delete task" class="rounded p-1 text-sm leading-none text-slate-500 hover:bg-red-50 hover:text-red-700">🗑️</button>
+            <button type="submit" class="btn rounded-md px-2 py-1 text-[10.5px] font-medium text-[#16302A]/70 hover:bg-[#FBEAE8] hover:text-[#B3261E]">
+                Delete
+            </button>
         </form>
     </div>
     {{ edit_form(record, csrf_token) }}
 </article>
 {% endmacro %}
 {% macro task_lane(records, category, status) %}
-<section class="min-w-0 rounded-xl border border-slate-200 bg-slate-100/80 p-2" aria-label="{{ status|title }} tasks">
+<section class="lane min-w-0" aria-label="{{ status|title }} tasks">
     <header class="mb-2 flex items-center justify-between px-1">
         <div class="flex items-center gap-2">
-            <span class="flex h-5 w-5 items-center justify-center rounded-full {{ 'bg-amber-100 text-amber-700' if status == 'pending' else 'bg-emerald-100 text-emerald-700' }}">{{ '!' if status == 'pending' else '✓' }}</span>
-            <div>
-                <h3 class="text-xs font-semibold uppercase tracking-wide {{ 'text-amber-800' if status == 'pending' else 'text-emerald-800' }}">{{ 'Pending' if status == 'pending' else 'Completed' }}</h3>
-                {% if status == 'done' %}<p class="text-[10px] text-slate-500">Latest completed first</p>{% endif %}
-            </div>
+            <span class="h-2 w-2 rounded-full {{ 'bg-[#C98A16]' if status == 'pending' else 'bg-[#17855A]' }}" aria-hidden="true"></span>
+            <h2 class="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#16302A]/75">{{ 'Pending' if status == 'pending' else 'Completed' }}</h2>
+            <span data-lane-count class="chip chip-soft tabular-nums">{{ records|selectattr('status', 'equalto', status)|list|length }}</span>
         </div>
-        <span data-lane-count class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ 'bg-amber-100 text-amber-800' if status == 'pending' else 'bg-emerald-100 text-emerald-800' }}">{{ records|selectattr('status', 'equalto', status)|list|length }}</span>
+        {% if status == 'done' %}
+        <span class="text-[11px] text-[#16302A]/70">Latest first</span>
+        {% endif %}
     </header>
-    <div class="task-list min-h-12 {{ 'pending-task-list' if status == 'pending' else 'space-y-2' }}" data-order-key="{{ category }}-{{ status }}">
-        {% for record in records if record.status == status %}
-        {{ task_card(record, csrf_token) }}
-        {% else %}
-        <p data-empty-lane class="rounded-lg border border-dashed border-slate-300 bg-white/70 p-4 text-center text-xs text-slate-400">No {{ status }} tasks</p>
+    <div class="task-list min-w-0 {{ 'grid grid-cols-1 content-start gap-2 md:grid-cols-2 xl:grid-cols-2' if status == 'pending' else 'grid grid-cols-1 content-start gap-1.5 sm:grid-cols-2 xl:grid-cols-3' }}" data-order-key="{{ category }}-{{ status }}" {% if status == 'done' %}data-visible-count="15"{% endif %}>
+        {% set lane_records = records|selectattr('status', 'equalto', status)|list %}
+        {% for record in lane_records %}
+        {{ task_card(record, csrf_token, status == 'done' and loop.index > 15) }}
         {% endfor %}
+        <p data-empty-lane class="{{ 'hidden ' if lane_records|length else '' }}col-span-full rounded-xl border border-dashed border-[#16302A]/20 bg-white/60 p-4 text-center text-[12px] text-[#16302A]/70">No {{ status }} tasks</p>
     </div>
+    {% if status == 'done' %}
+    <button type="button" data-load-more class="btn mt-2 w-full rounded-lg border border-[#16302A]/15 bg-white px-3 py-2 text-[12px] font-semibold text-[#146244] hover:bg-[#EAF3ED]" {% if lane_records|length <= 15 %}hidden{% endif %}>
+        More ({{ lane_records|length - 15 if lane_records|length > 15 else 0 }} remaining)
+    </button>
+    {% endif %}
 </section>
 {% endmacro %}
-<body class="min-h-screen bg-slate-100 p-3 sm:p-6">
-    <main class="mx-auto max-w-6xl" data-csrf-token="{{ csrf_token }}">
-        <header class="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <p class="text-sm font-medium text-blue-700">Technician Admin</p>
-                <h1 class="text-2xl font-bold text-slate-900">Task Board</h1>
+<main class="mx-auto max-w-[1400px] px-4 py-4 sm:px-6" data-csrf-token="{{ csrf_token }}">
+
+    <header class="card mb-3 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div class="flex items-center gap-2.5">
+            <span class="grid h-8 w-8 place-items-center rounded-xl bg-[#16302A] text-white" aria-hidden="true">
+                <i class="ph-bold ph-plugs-connected text-[17px]"></i>
+            </span>
+            <div class="leading-tight">
+                <h1 class="text-[17px] font-bold">Task Board</h1>
+                <p class="text-[11.5px] text-[#16302A]/70">Field Log</p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="self-center text-xs text-slate-600">{{ account.display_name or account.username }} ({{ 'Main admin' if account.role == 'main' else 'Editor' }})</span>
-                {% if account.role == 'main' %}
-                <a href="{{ url_for('admin_accounts') }}" class="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-800 hover:bg-blue-50">Account management</a>
-                {% endif %}
-                <a href="/" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">New entry</a>
-                <form method="post" action="/admin/logout">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button class="rounded-lg border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Log out</button>
-                </form>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="mr-1 text-[12.5px] font-medium text-[#16302A]/75">{{ account.display_name or account.username }}</span>
+            {% if account.role == 'main' %}
+            <a href="{{ url_for('admin_accounts') }}" class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
+                <i class="ph-bold ph-users-three text-[14px]" aria-hidden="true"></i>Account management
+            </a>
+            {% endif %}
+            <a href="/" class="btn btn-primary flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
+                <i class="ph-bold ph-plus text-[14px]" aria-hidden="true"></i>New entry
+            </a>
+            <form method="post" action="/admin/logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
+                    <i class="ph-bold ph-sign-out text-[14px]" aria-hidden="true"></i>Log out
+                </button>
+            </form>
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <p class="mb-2 rounded-xl border px-3 py-2 text-[13px] {{ 'border-[#1B7F52]/25 bg-[#EAF3ED] text-[#146244]' if category == 'success' else 'border-red-200 bg-red-50 text-red-700' }}" role="status">{{ message }}</p>
+        {% endfor %}
+    {% endwith %}
+    {% if account.role == 'main' and undo_record_id %}
+        <div class="mb-2 flex items-center justify-between gap-3 rounded-xl border border-[#1B7F52]/25 bg-[#EAF3ED] px-3 py-2 text-[13px] text-[#146244]" role="status">
+            <span>Task deleted. Undo it now if needed.</span>
+            <form method="post" action="{{ url_for('admin_restore', record_id=undo_record_id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn rounded-lg border border-[#1B7F52]/30 bg-white px-3 py-1 font-semibold text-[#146244] hover:bg-[#F4F1E9]">Undo</button>
+            </form>
+        </div>
+    {% endif %}
+    <p id="boardMessage" class="mb-2 rounded-xl border border-[#B3261E]/25 bg-[#FBEAE8] px-3 py-2 text-[13px] text-[#B3261E]" role="status" hidden></p>
+
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+            {% if account.role == 'main' %}
+            <button type="button" id="openDeleteRequests" class="btn flex h-9 items-center gap-1.5 rounded-xl border border-[#B3261E]/25 bg-white px-3 text-[12.5px] font-semibold text-[#B3261E] hover:bg-[#FBEAE8]">
+                <i class="ph-bold ph-trash text-[14px]" aria-hidden="true"></i>
+                Delete requests
+                <span class="chip chip-danger tabular-nums">{{ deletion_requests|length }}</span>
+            </button>
+            {% endif %}
+            <label class="relative flex items-center" for="areaFilter">
+                <i class="ph-bold ph-funnel pointer-events-none absolute left-3 text-[13px] text-[#16302A]/70" aria-hidden="true"></i>
+                <select id="areaFilter" aria-label="Filter by area" class="field h-9 w-48 appearance-none pl-8 pr-8 text-[12.5px] font-semibold">
+                    <option value="all">All areas</option>
+                    {% for area in areas %}
+                    <option value="{{ area }}">{{ area }}</option>
+                    {% endfor %}
+                    <option value="">Unassigned</option>
+                </select>
+                <i class="ph-bold ph-caret-down pointer-events-none absolute right-3 text-[12px] text-[#16302A]/70" aria-hidden="true"></i>
+            </label>
+            <nav class="flex h-9 items-center gap-1 rounded-xl bg-[#16302A]/[0.06] p-1" aria-label="Task types">
+                <button type="button" id="teamUserTab" data-category="teamUser" aria-pressed="true" class="tab is-active flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-semibold" onclick="showCategory('teamUser')">
+                    Customer<span data-category-count="teamUser" class="tabular-nums text-[11.5px] font-medium text-[#16302A]/72">{{ team_user_records|length }}</span>
+                </button>
+                <button type="button" id="tjBoxTab" data-category="tjBox" aria-pressed="false" class="tab flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-semibold text-[#16302A]/72" onclick="showCategory('tjBox')">
+                    TJ Box<span data-category-count="tjBox" class="tabular-nums text-[11.5px] font-medium text-[#16302A]/70">{{ tj_box_records|length }}</span>
+                </button>
+            </nav>
+        </div>
+        <p class="text-[12px] text-[#16302A]/70">
+            <span data-category-total="teamUser" class="tabular-nums font-semibold text-[#16302A]/70">{{ team_user_records|length }}</span> Customer
+            · <span data-category-total="tjBox" class="tabular-nums font-semibold text-[#16302A]/70">{{ tj_box_records|length }}</span> TJ Box
+        </p>
+    </div>
+
+    <section id="teamUserCategory">
+        <div class="task-board grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" data-board="teamUser">
+            {{ task_lane(team_user_records, 'teamUser', 'pending') }}
+            {{ task_lane(team_user_records, 'teamUser', 'done') }}
+        </div>
+    </section>
+
+    <section id="tjBoxCategory" hidden>
+        <div class="task-board grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" data-board="tjBox">
+            {{ task_lane(tj_box_records, 'tjBox', 'pending') }}
+            {{ task_lane(tj_box_records, 'tjBox', 'done') }}
+        </div>
+    </section>
+</main>
+
+{% if account.role == 'main' %}
+<div id="deleteRequestsPanel" class="fixed inset-0 z-[100] flex items-center justify-center bg-[#16302A]/45 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="deleteRequestsTitle" hidden>
+    <section class="card flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden">
+        <header class="flex shrink-0 items-center justify-between border-b border-[#16302A]/10 px-4 py-3">
+            <div class="flex items-center gap-2">
+                <h2 id="deleteRequestsTitle" class="text-[15px] font-bold text-[#B3261E]">Delete requests</h2>
+                <span class="chip chip-danger tabular-nums">{{ deletion_requests|length }}</span>
             </div>
+            <button type="button" id="closeDeleteRequests" class="btn btn-ghost grid h-8 w-8 place-items-center rounded-lg" aria-label="Close delete requests">
+                <i class="ph-bold ph-x text-[15px]" aria-hidden="true"></i>
+            </button>
         </header>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% for category, message in messages %}
-            <p class="mb-3 rounded-lg px-3 py-2 text-sm {{ 'bg-emerald-50 text-emerald-800' if category == 'success' else 'bg-red-50 text-red-800' }}">{{ message }}</p>
+        <div class="min-h-0 divide-y divide-[#16302A]/10 overflow-y-auto">
+            {% for record in deletion_requests %}
+            <article data-delete-request class="{{ 'hidden' if loop.index > 15 else '' }} flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                <span class="text-[13px] font-bold tabular-nums">#{{ record.id }}</span>
+                <span class="chip {{ 'chip-tj' if record.work_type == 'TJ Box' else 'chip-customer' }}">{{ 'TJ Box' if record.work_type == 'TJ Box' else 'Customer' }}</span>
+                <span class="chip chip-soft">{{ record.area or 'Unassigned' }}</span>
+                <span class="min-w-0 flex-1 truncate text-[12.5px] font-medium">
+                    {{ record.location if record.work_type == 'TJ Box' else record.customer_id or record.customer_name or record.onu_id or '-' }}
+                </span>
+                <time class="text-[11px] text-[#16302A]/65">{{ record.timestamp }}</time>
+                <div class="flex items-center gap-2">
+                    <form method="post" action="{{ url_for('admin_reject_delete', record_id=record.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn flex h-8 items-center gap-1 rounded-lg border border-[#1B7F52]/30 bg-white px-2.5 text-[11.5px] font-semibold text-[#146244] hover:bg-[#EAF3ED]">
+                            Undo
+                        </button>
+                    </form>
+                    <form method="post" action="{{ url_for('admin_approve_delete', record_id=record.id) }}" onsubmit="return confirm('Approve deletion of this task?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn flex h-8 items-center gap-1 rounded-lg bg-[#B3261E] px-2.5 text-[11.5px] font-semibold text-white hover:bg-[#921F18]">
+                            <i class="ph-bold ph-archive text-[13px]" aria-hidden="true"></i>Approve
+                        </button>
+                    </form>
+                </div>
+            </article>
+            {% else %}
+            <p class="px-4 py-8 text-center text-[13px] text-[#16302A]/65">There are no pending delete requests.</p>
             {% endfor %}
-        {% endwith %}
+        </div>
+        {% if deletion_requests|length > 15 %}
+        <button type="button" id="moreDeleteRequests" class="btn shrink-0 border-t border-[#16302A]/10 px-4 py-3 text-[12px] font-semibold text-[#146244] hover:bg-[#EAF3ED]">
+            More ({{ deletion_requests|length - 15 }} remaining)
+        </button>
+        {% endif %}
+    </section>
+</div>
+{% endif %}
 
-        <p id="boardMessage" class="mb-3 hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="status"></p>
-        <label for="areaFilter" class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-600">Area</label>
-        <select id="areaFilter" class="mb-4 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 sm:w-72">
-            <option value="all">All areas</option>
-            {% for area in areas %}
-            <option value="{{ area }}">{{ area }}</option>
-            {% endfor %}
-            <option value="">Unassigned</option>
-        </select>
-        <nav class="mb-4 grid grid-cols-2 gap-2" aria-label="Task types">
-            <button type="button" id="teamUserTab" aria-selected="true" class="rounded-lg border-2 border-blue-600 bg-white p-2.5 text-left shadow-sm" onclick="showCategory('teamUser')">
-                <span class="block text-sm font-medium text-slate-500">Customer</span>
-                <span data-category-count="teamUser" class="mt-0.5 block text-xl font-bold text-slate-900">{{ team_user_records|length }}</span>
-            </button>
-            <button type="button" id="tjBoxTab" aria-selected="false" class="rounded-lg border-2 border-transparent bg-white p-2.5 text-left shadow-sm" onclick="showCategory('tjBox')">
-                <span class="block text-sm font-medium text-slate-500">TJ Box</span>
-                <span data-category-count="tjBox" class="mt-0.5 block text-xl font-bold text-slate-900">{{ tj_box_records|length }}</span>
-            </button>
-        </nav>
+<script>
+    let draggedCard = null;
+    let sourceList = null;
+    let dragPointerId = null;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragActivated = false;
 
-        <section id="teamUserCategory">
-            <div class="mb-2 flex items-center justify-between">
-                <h2 class="font-semibold text-slate-800">Customer tasks</h2>
-                <span data-category-total="teamUser" class="text-xs text-slate-500">{{ team_user_records|length }} total</span>
-            </div>
-            <div class="task-board grid grid-cols-1 items-start gap-3" data-board="teamUser">
-                {{ task_lane(team_user_records, 'teamUser', 'pending') }}
-                {{ task_lane(team_user_records, 'teamUser', 'done') }}
-            </div>
-        </section>
+    function showBoardMessage(message) {
+        const messageBox = document.getElementById('boardMessage');
+        messageBox.innerText = message;
+        messageBox.hidden = false;
+    }
 
-        <section id="tjBoxCategory" class="hidden">
-            <div class="mb-2 flex items-center justify-between">
-                <h2 class="font-semibold text-slate-800">TJ Box tasks</h2>
-                <span data-category-total="tjBox" class="text-xs text-slate-500">{{ tj_box_records|length }} total</span>
-            </div>
-            <div class="task-board grid grid-cols-1 items-start gap-3" data-board="tjBox">
-                {{ task_lane(tj_box_records, 'tjBox', 'pending') }}
-                {{ task_lane(tj_box_records, 'tjBox', 'done') }}
-            </div>
-        </section>
-    </main>
+    function clearBoardMessage() {
+        const messageBox = document.getElementById('boardMessage');
+        messageBox.innerText = '';
+        messageBox.hidden = true;
+    }
 
-    <script>
-        let draggedCard = null;
-        let sourceList = null;
-        let dragPointerId = null;
-        let dragStartX = 0;
-        let dragStartY = 0;
-        let dragActivated = false;
-
-        function showBoardMessage(message) {
-            const messageBox = document.getElementById('boardMessage');
-            messageBox.innerText = message;
-            messageBox.classList.remove('hidden');
+    function saveListOrder(list) {
+        try {
+            const ids = Array.from(list.querySelectorAll(':scope > .task-card'))
+                .map((card) => card.dataset.taskId);
+            localStorage.setItem('admin-task-order-v3-' + list.dataset.orderKey, JSON.stringify(ids));
+        } catch (error) {
+            showBoardMessage('Could not save the card order in this browser.');
         }
+    }
 
-        function clearBoardMessage() {
-            const messageBox = document.getElementById('boardMessage');
-            messageBox.innerText = '';
-            messageBox.classList.add('hidden');
+    function updateLaneState(list) {
+        const selectedArea = document.getElementById('areaFilter').value;
+        const allCards = Array.from(list.querySelectorAll(':scope > .task-card'));
+        const matchingCards = allCards.filter((card) =>
+            selectedArea === 'all' || card.dataset.area === selectedArea
+        );
+        const isCompletedLane = list.dataset.orderKey.endsWith('-done');
+        const visibleCount = isCompletedLane
+            ? Number(list.dataset.visibleCount || 15)
+            : matchingCards.length;
+        const matchingSet = new Set(matchingCards);
+        let shown = 0;
+        allCards.forEach((card) => {
+            const shouldShow = matchingSet.has(card) && (!isCompletedLane || shown < visibleCount);
+            card.classList.toggle('hidden', !shouldShow);
+            if (shouldShow) shown += 1;
+        });
+        const emptyMessage = list.querySelector('[data-empty-lane]');
+        if (emptyMessage) emptyMessage.classList.toggle('hidden', matchingCards.length > 0);
+        const count = list.closest('section').querySelector('[data-lane-count]');
+        if (count) count.innerText = matchingCards.length;
+        const moreButton = list.parentElement.querySelector('[data-load-more]');
+        if (moreButton) {
+            const remaining = Math.max(0, matchingCards.length - visibleCount);
+            moreButton.hidden = remaining === 0;
+            moreButton.innerText = 'More (' + remaining + ' remaining)';
         }
+    }
 
-        function saveListOrder(list) {
-            try {
-                const ids = Array.from(list.querySelectorAll(':scope > .task-card'))
-                    .map((card) => card.dataset.taskId);
-                localStorage.setItem('admin-task-order-v3-' + list.dataset.orderKey, JSON.stringify(ids));
-            } catch (error) {
-                showBoardMessage('Could not save the card order in this browser.');
-            }
-        }
+    function updateAreaFilter() {
+        const selectedArea = document.getElementById('areaFilter').value;
+        document.querySelectorAll('.task-list').forEach(updateLaneState);
+        ['teamUser', 'tjBox'].forEach((category) => {
+            const cards = Array.from(
+                document.querySelectorAll('.task-board[data-board="' + category + '"] .task-card')
+            ).filter((card) => selectedArea === 'all' || card.dataset.area === selectedArea);
+            const counter = document.querySelector('[data-category-count="' + category + '"]');
+            if (counter) counter.innerText = cards.length;
+        });
+    }
 
-        function updateLaneState(list) {
-            const cards = list.querySelectorAll(':scope > .task-card:not(.hidden)');
-            const emptyMessage = list.querySelector('[data-empty-lane]');
-            if (emptyMessage) emptyMessage.classList.toggle('hidden', cards.length > 0);
-            const count = list.closest('section').querySelector('[data-lane-count]');
-            if (count) count.innerText = cards.length;
-        }
+    document.querySelectorAll('[data-load-more]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const list = button.parentElement.querySelector('.task-list');
+            list.dataset.visibleCount = String(Number(list.dataset.visibleCount || 15) + 15);
+            updateLaneState(list);
+        });
+    });
 
-        function updateAreaFilter() {
-            const selectedArea = document.getElementById('areaFilter').value;
-            document.querySelectorAll('.task-card').forEach((card) => {
-                card.classList.toggle(
-                    'hidden',
-                    selectedArea !== 'all' && card.dataset.area !== selectedArea
-                );
+    const deleteRequestItems = Array.from(document.querySelectorAll('[data-delete-request]'));
+    const moreDeleteRequestsButton = document.getElementById('moreDeleteRequests');
+    let visibleDeleteRequests = 15;
+    if (moreDeleteRequestsButton) {
+        moreDeleteRequestsButton.addEventListener('click', () => {
+            visibleDeleteRequests += 15;
+            deleteRequestItems.forEach((item, index) => {
+                item.classList.toggle('hidden', index >= visibleDeleteRequests);
             });
-            document.querySelectorAll('.task-list').forEach(updateLaneState);
-            ['teamUser', 'tjBox'].forEach((category) => {
-                const cards = Array.from(
-                    document.querySelectorAll('.task-board[data-board="' + category + '"] .task-card')
-                ).filter((card) => !card.classList.contains('hidden'));
-                document.querySelector('[data-category-count="' + category + '"]').innerText = cards.length;
-                document.querySelector('[data-category-total="' + category + '"]').innerText =
-                    cards.length + ' total';
+            const remaining = Math.max(0, deleteRequestItems.length - visibleDeleteRequests);
+            moreDeleteRequestsButton.hidden = remaining === 0;
+            moreDeleteRequestsButton.innerText = 'More (' + remaining + ' remaining)';
+        });
+    }
+
+    function setTaskStatus(card, status, completedBy, completedAt) {
+        const isDone = status === 'done';
+        const board = card.closest('.task-board');
+        const category = board.dataset.board;
+        const destination = board.querySelector(
+            '.task-list[data-order-key="' + category + '-' + status + '"]'
+        );
+        const source = card.parentElement;
+        card.dataset.status = status;
+        card.classList.toggle('is-done', isDone);
+        card.querySelector('.pending-card-content').classList.toggle('hidden', isDone);
+        card.querySelector('.done-card-content').classList.toggle('hidden', !isDone);
+        card.querySelector('.done-card-actions').classList.toggle('hidden', !isDone);
+        const completedLabel = card.querySelector('[data-completed-by]');
+        if (completedLabel) {
+            completedLabel.innerText = isDone ? completedBy : '';
+            completedLabel.title = isDone && completedBy ? 'Completed by ' + completedBy : '';
+            completedLabel.classList.toggle('hidden', !isDone || !completedBy);
+        }
+        const completedAtLabel = card.querySelector('[data-completed-at]');
+        if (completedAtLabel) {
+            completedAtLabel.innerText = isDone ? completedAt : '';
+        }
+        destination.insertBefore(card, destination.firstElementChild);
+        updateLaneState(source);
+        updateLaneState(destination);
+        saveListOrder(source);
+        saveListOrder(destination);
+    }
+
+    async function updateTaskStatus(button, status) {
+        const card = button.closest('.task-card');
+        button.disabled = true;
+        clearBoardMessage();
+        try {
+            const response = await fetch('/api/update-status/' + card.dataset.taskId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[data-csrf-token]').dataset.csrfToken
+                },
+                body: JSON.stringify({ status })
             });
-        }
-
-        function setTaskStatus(card, status, completedBy, completedAt) {
-            const isDone = status === 'done';
-            const board = card.closest('.task-board');
-            const category = board.dataset.board;
-            const destination = board.querySelector(
-                '.task-list[data-order-key="' + category + '-' + status + '"]'
-            );
-            const source = card.parentElement;
-            card.dataset.status = status;
-            card.classList.toggle('border-emerald-300', isDone);
-            card.classList.toggle('bg-emerald-50', isDone);
-            card.classList.toggle('border-amber-200', !isDone);
-            card.classList.toggle('bg-white', !isDone);
-            card.querySelector('.pending-card-content').classList.toggle('hidden', isDone);
-            card.querySelector('.done-card-content').classList.toggle('hidden', !isDone);
-            card.querySelector('.done-card-actions').classList.toggle('hidden', !isDone);
-            const completedLabel = card.querySelector('[data-completed-by]');
-            if (completedLabel) {
-                completedLabel.innerText = isDone ? 'By ' + completedBy : '';
-                completedLabel.title = isDone ? 'Completed by ' + completedBy : '';
+            const result = await response.json();
+            if (!response.ok || result.status !== 'success') {
+                throw new Error(result.message || 'Could not update task status.');
             }
-            const completedAtLabel = card.querySelector('[data-completed-at]');
-            if (completedAtLabel) {
-                completedAtLabel.innerText = isDone ? completedAt : '';
-            }
-            destination.insertBefore(card, destination.firstElementChild);
-            updateLaneState(source);
-            updateLaneState(destination);
-            saveListOrder(source);
-            saveListOrder(destination);
+            setTaskStatus(card, result.status_value, result.completed_by, result.completed_at);
+        } catch (error) {
+            showBoardMessage('Error: ' + error.message);
+        } finally {
+            button.disabled = false;
         }
+    }
 
-        async function updateTaskStatus(button, status) {
-            const card = button.closest('.task-card');
-            button.disabled = true;
-            clearBoardMessage();
+    function initializeTaskBoards() {
+        document.querySelectorAll('.task-list').forEach((list) => {
+            const cards = Array.from(list.querySelectorAll(':scope > .task-card'));
+            const cardsById = new Map(cards.map((card) => [card.dataset.taskId, card]));
             try {
-                const response = await fetch('/api/update-status/' + card.dataset.taskId, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('main').dataset.csrfToken
-                    },
-                    body: JSON.stringify({ status })
-                });
-                const result = await response.json();
-                if (!response.ok || result.status !== 'success') {
-                    throw new Error(result.message || 'Could not update task status.');
+                const savedOrder = localStorage.getItem('admin-task-order-v3-' + list.dataset.orderKey);
+                if (savedOrder) {
+                    const ids = JSON.parse(savedOrder);
+                    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
+                        throw new Error('Saved card order is invalid.');
+                    }
+                    const orderedIds = ids.filter((id) => cardsById.has(id));
+                    const savedIds = new Set(orderedIds);
+                    const newIds = cards
+                        .filter((card) => !savedIds.has(card.dataset.taskId))
+                        .map((card) => card.dataset.taskId);
+                    orderedIds.unshift(...newIds);
+                    orderedIds.forEach((id) => list.appendChild(cardsById.get(id)));
                 }
-                setTaskStatus(
-                    card,
-                    result.status_value,
-                    result.completed_by,
-                    result.completed_at
-                );
             } catch (error) {
-                showBoardMessage('Error: ' + error.message);
-            } finally {
-                button.disabled = false;
+                showBoardMessage(error.message || 'Could not load the saved card order.');
             }
-        }
+            updateLaneState(list);
 
-        function initializeTaskBoards() {
-            document.querySelectorAll('.task-list').forEach((list) => {
-                const cards = Array.from(list.querySelectorAll(':scope > .task-card'));
-                const cardsById = new Map(cards.map((card) => [card.dataset.taskId, card]));
-                try {
-                    const savedOrder = localStorage.getItem('admin-task-order-v3-' + list.dataset.orderKey);
-                    if (savedOrder) {
-                        const ids = JSON.parse(savedOrder);
-                        if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
-                            throw new Error('Saved card order is invalid.');
-                        }
-                        const orderedIds = ids.filter((id) => cardsById.has(id));
-                        const savedIds = new Set(orderedIds);
-                        const newIds = cards
-                            .filter((card) => !savedIds.has(card.dataset.taskId))
-                            .map((card) => card.dataset.taskId);
-                        orderedIds.unshift(...newIds);
-                        orderedIds.forEach((id) => list.appendChild(cardsById.get(id)));
-                    }
-                } catch (error) {
-                    showBoardMessage(error.message || 'Could not load the saved card order.');
-                }
-                updateLaneState(list);
-
-                list.addEventListener('pointerdown', (event) => {
-                    const handle = event.target.closest('[data-drag-handle]');
-                    const card = handle && handle.closest('.task-card');
-                    if (!card || event.button !== 0) return;
-                    event.preventDefault();
-                    draggedCard = card;
-                    sourceList = list;
-                    dragPointerId = event.pointerId;
-                    dragStartX = event.clientX;
-                    dragStartY = event.clientY;
-                    dragActivated = false;
-                    handle.setPointerCapture(event.pointerId);
-                });
-
-                list.addEventListener('pointermove', (event) => {
-                    if (!draggedCard || event.pointerId !== dragPointerId) return;
-                    if (!dragActivated) {
-                        const distance = Math.hypot(
-                            event.clientX - dragStartX,
-                            event.clientY - dragStartY
-                        );
-                        if (distance < 5) return;
-                        dragActivated = true;
-                        draggedCard.classList.add('is-dragging');
-                    }
-                    const target = document.elementFromPoint(event.clientX, event.clientY);
-                    const targetCard = target && target.closest('.task-card');
-                    if (!targetCard || targetCard.parentElement !== list || targetCard === draggedCard) {
-                        return;
-                    }
-                    const rect = targetCard.getBoundingClientRect();
-                    const after = event.clientY > rect.top + rect.height / 2
-                        || (event.clientY >= rect.top && event.clientY <= rect.bottom
-                            && event.clientX > rect.left + rect.width / 2);
-                    list.insertBefore(draggedCard, after ? targetCard.nextSibling : targetCard);
-                });
-
-                list.addEventListener('pointerup', (event) => {
-                    if (!draggedCard || event.pointerId !== dragPointerId) return;
-                    if (dragActivated) {
-                        draggedCard.classList.remove('is-dragging');
-                        saveListOrder(sourceList);
-                    }
-                    draggedCard = null;
-                    sourceList = null;
-                    dragPointerId = null;
-                    dragActivated = false;
-                });
+            list.addEventListener('pointerdown', (event) => {
+                const handle = event.target.closest('[data-drag-handle]');
+                const card = handle && handle.closest('.task-card');
+                if (!card || event.button !== 0) return;
+                event.preventDefault();
+                draggedCard = card;
+                sourceList = list;
+                dragPointerId = event.pointerId;
+                dragStartX = event.clientX;
+                dragStartY = event.clientY;
+                dragActivated = false;
+                handle.setPointerCapture(event.pointerId);
             });
-        }
 
-        function toggleEdit(recordId) {
-            document.getElementById('edit-' + recordId).classList.toggle('hidden');
-        }
-
-        async function copyCoordinates(button) {
-            const coordinates = button.dataset.coordinates;
-            try {
-                if (navigator.clipboard && window.isSecureContext) {
-                    await navigator.clipboard.writeText(coordinates);
-                } else {
-                    const copyField = document.createElement('textarea');
-                    copyField.value = coordinates;
-                    copyField.style.position = 'fixed';
-                    copyField.style.opacity = '0';
-                    document.body.appendChild(copyField);
-                    copyField.select();
-                    const copied = document.execCommand('copy');
-                    copyField.remove();
-                    if (!copied) throw new Error('Copy failed.');
+            list.addEventListener('pointermove', (event) => {
+                if (!draggedCard || event.pointerId !== dragPointerId) return;
+                if (!dragActivated) {
+                    const distance = Math.hypot(
+                        event.clientX - dragStartX,
+                        event.clientY - dragStartY
+                    );
+                    if (distance < 5) return;
+                    dragActivated = true;
+                    draggedCard.classList.add('is-dragging');
                 }
-                const originalText = button.innerText;
-                button.innerText = 'Copied';
-                window.setTimeout(() => { button.innerText = originalText; }, 1500);
-            } catch (error) {
-                alert('Could not copy coordinates. Copy manually: ' + coordinates);
+                const target = document.elementFromPoint(event.clientX, event.clientY);
+                const targetCard = target && target.closest('.task-card');
+                if (!targetCard || targetCard.parentElement !== list || targetCard === draggedCard) {
+                    return;
+                }
+                const rect = targetCard.getBoundingClientRect();
+                const after = event.clientY > rect.top + rect.height / 2
+                    || (event.clientY >= rect.top && event.clientY <= rect.bottom
+                        && event.clientX > rect.left + rect.width / 2);
+                list.insertBefore(draggedCard, after ? targetCard.nextSibling : targetCard);
+            });
+
+            list.addEventListener('pointerup', (event) => {
+                if (!draggedCard || event.pointerId !== dragPointerId) return;
+                if (dragActivated) {
+                    draggedCard.classList.remove('is-dragging');
+                    saveListOrder(sourceList);
+                }
+                draggedCard = null;
+                sourceList = null;
+                dragPointerId = null;
+                dragActivated = false;
+            });
+        });
+    }
+
+    function toggleEdit(recordId) {
+        const panel = document.getElementById('edit-' + recordId);
+        if (panel) panel.hidden = !panel.hidden;
+    }
+
+    async function copyCoordinates(button) {
+        const coordinates = button.dataset.coordinates;
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(coordinates);
+            } else {
+                const copyField = document.createElement('textarea');
+                copyField.value = coordinates;
+                copyField.style.position = 'fixed';
+                copyField.style.opacity = '0';
+                document.body.appendChild(copyField);
+                copyField.select();
+                const copied = document.execCommand('copy');
+                copyField.remove();
+                if (!copied) throw new Error('Copy failed.');
             }
+            const label = button.querySelector('span') || button;
+            const originalText = label.innerText;
+            label.innerText = 'Copied';
+            window.setTimeout(() => { label.innerText = originalText; }, 1500);
+        } catch (error) {
+            alert('Could not copy coordinates. Copy manually: ' + coordinates);
         }
+    }
 
-        function showCategory(category) {
-            const showCustomer = category === 'teamUser';
-            document.getElementById('teamUserCategory').classList.toggle('hidden', !showCustomer);
-            document.getElementById('tjBoxCategory').classList.toggle('hidden', showCustomer);
+    function showCategory(category) {
+        const showCustomer = category === 'teamUser';
+        document.getElementById('teamUserCategory').hidden = !showCustomer;
+        document.getElementById('tjBoxCategory').hidden = showCustomer;
 
-            const teamTab = document.getElementById('teamUserTab');
-            const tjTab = document.getElementById('tjBoxTab');
-            teamTab.setAttribute('aria-selected', String(showCustomer));
-            tjTab.setAttribute('aria-selected', String(!showCustomer));
-            teamTab.classList.toggle('border-blue-600', showCustomer);
-            teamTab.classList.toggle('border-transparent', !showCustomer);
-            tjTab.classList.toggle('border-blue-600', !showCustomer);
-            tjTab.classList.toggle('border-transparent', showCustomer);
+        ['teamUser', 'tjBox'].forEach((name) => {
+            const tab = document.getElementById(name + 'Tab');
+            const isActive = (name === 'teamUser') === showCustomer;
+            tab.classList.toggle('is-active', isActive);
+            tab.classList.toggle('text-[#16302A]/72', !isActive);
+            tab.setAttribute('aria-pressed', String(isActive));
+            const counter = tab.querySelector('[data-category-count]');
+            if (counter) counter.classList.toggle('text-[#16302A]/70', !isActive);
+        });
+    }
+
+    const deleteRequestsPanel = document.getElementById('deleteRequestsPanel');
+    const openDeleteRequestsButton = document.getElementById('openDeleteRequests');
+    const closeDeleteRequestsButton = document.getElementById('closeDeleteRequests');
+    if (deleteRequestsPanel && openDeleteRequestsButton && closeDeleteRequestsButton) {
+        function openDeleteRequestsPanel() {
+            deleteRequestsPanel.hidden = false;
+            document.body.style.overflow = 'hidden';
+            closeDeleteRequestsButton.focus();
         }
+        openDeleteRequestsButton.addEventListener('click', () => {
+            openDeleteRequestsPanel();
+        });
+        closeDeleteRequestsButton.addEventListener('click', () => {
+            deleteRequestsPanel.hidden = true;
+            document.body.style.overflow = '';
+            openDeleteRequestsButton.focus();
+        });
+        deleteRequestsPanel.addEventListener('click', (event) => {
+            if (event.target !== deleteRequestsPanel) return;
+            deleteRequestsPanel.hidden = true;
+            document.body.style.overflow = '';
+            openDeleteRequestsButton.focus();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape' || deleteRequestsPanel.hidden) return;
+            deleteRequestsPanel.hidden = true;
+            document.body.style.overflow = '';
+            openDeleteRequestsButton.focus();
+        });
+        if ({{ 'true' if open_delete_requests else 'false' }}) {
+            openDeleteRequestsPanel();
+        }
+    }
 
-        document.getElementById('areaFilter').addEventListener('change', updateAreaFilter);
-        initializeTaskBoards();
-        updateAreaFilter();
-    </script>
+    document.getElementById('areaFilter').addEventListener('change', updateAreaFilter);
+    initializeTaskBoards();
+    updateAreaFilter();
+</script>
 </body>
 </html>

@@ -140,6 +140,15 @@ def init_db():
             cursor.execute("ALTER TABLE job_logs ADD COLUMN completed_at TEXT")
         if "area" not in existing_columns:
             cursor.execute("ALTER TABLE job_logs ADD COLUMN area TEXT")
+        if "delete_requested" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE job_logs ADD COLUMN delete_requested "
+                "INTEGER NOT NULL DEFAULT 0"
+            )
+        if "completed_by_role" not in existing_columns:
+            cursor.execute("ALTER TABLE job_logs ADD COLUMN completed_by_role TEXT")
+        if "deleted_at" not in existing_columns:
+            cursor.execute("ALTER TABLE job_logs ADD COLUMN deleted_at TEXT")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS admin_accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -238,12 +247,17 @@ def index():
 @app.route("/api/latest-customer-id")
 def latest_customer_id():
     with closing(sqlite3.connect(DB_NAME)) as conn:
-        row = conn.execute(
-            "SELECT customer_id FROM job_logs "
-            "WHERE customer_id IS NOT NULL AND customer_id != '' "
-            "ORDER BY id DESC LIMIT 1"
-        ).fetchone()
-    return jsonify({"customer_id": row[0] if row else ""})
+        customer_id = get_latest_customer_id(conn)
+    return jsonify({"customer_id": customer_id})
+
+
+def get_latest_customer_id(conn):
+    row = conn.execute(
+        "SELECT customer_id FROM job_logs "
+        "WHERE customer_id IS NOT NULL AND customer_id != '' "
+        "ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    return str(row[0]).strip() if row else ""
 
 
 @app.route("/admin/login", methods=["GET", "POST"])
@@ -312,14 +326,25 @@ def admin():
             SELECT id, timestamp, work_type, latitude, longitude, accuracy,
                    start_meter, end_meter, total_fiber, onu_id, customer_name,
                    splitter_info, notes, customer_id, tj_details, location,
-                   device_info, status, completed_by, completed_at, area
+                   device_info, status, completed_by, completed_at, area,
+                   delete_requested, completed_by_role, deleted_at
             FROM job_logs
+            WHERE ? = 'main' OR (delete_requested = 0 AND deleted_at IS NULL)
             ORDER BY
                 CASE WHEN status = 'done' THEN 1 ELSE 0 END,
                 CASE WHEN status = 'done' THEN completed_at END DESC,
                 id DESC
-            """
+            """,
+            (account["role"],),
         ).fetchall()
+        editor_names = {
+            name.casefold()
+            for row in conn.execute(
+                "SELECT display_name, username FROM admin_accounts WHERE role = 'editor'"
+            ).fetchall()
+            for name in row
+            if name
+        }
     records = [
         {
             "id": row[0],
@@ -340,11 +365,42 @@ def admin():
             "location": row[15],
             "device_info": row[16],
             "status": row[17] or "pending",
-            "completed_by": row[18] or "",
+            "completed_by": (
+                row[18] or ""
+                if row[22] == "editor"
+                or (row[22] is None and (row[18] or "").casefold() in editor_names)
+                else ""
+            ),
             "completed_at": row[19] or "",
             "area": row[20] or "",
+            "delete_requested": bool(row[21]),
+            "deleted_at": row[23] or "",
         }
         for row in rows
+    ]
+    deletion_requests = [
+        record
+        for record in records
+        if record["delete_requested"] and not record["deleted_at"]
+    ]
+    try:
+        requested_undo_id = int(request.args.get("undo", ""))
+    except ValueError:
+        requested_undo_id = None
+    undo_record_id = next(
+        (
+            record["id"]
+            for record in records
+            if account["role"] == "main"
+            and record["id"] == requested_undo_id
+            and record["deleted_at"]
+        ),
+        None,
+    )
+    records = [
+        record
+        for record in records
+        if not record["delete_requested"] and not record["deleted_at"]
     ]
     team_user_records = [record for record in records if record["work_type"] != "TJ Box"]
     tj_box_records = [record for record in records if record["work_type"] == "TJ Box"]
@@ -352,6 +408,12 @@ def admin():
         "admin.html",
         team_user_records=team_user_records,
         tj_box_records=tj_box_records,
+        deletion_requests=deletion_requests,
+        undo_record_id=undo_record_id,
+        open_delete_requests=(
+            account["role"] == "main"
+            and request.args.get("show_delete_requests") == "1"
+        ),
         csrf_token=csrf_token,
         areas=AREAS,
         account=account,
@@ -724,17 +786,103 @@ def admin_update(record_id):
 
 @app.route("/admin/<int:record_id>/delete", methods=["POST"])
 def admin_delete(record_id):
-    if get_current_admin() is None:
+    account = get_current_admin()
+    if account is None:
         return redirect(url_for("admin_login"))
     verify_admin_csrf_token()
 
     with closing(sqlite3.connect(DB_NAME)) as conn:
         with conn:
-            cursor = conn.execute("DELETE FROM job_logs WHERE id = ?", (record_id,))
+            cursor = conn.execute(
+                """
+                UPDATE job_logs SET delete_requested = 1
+                WHERE id = ? AND deleted_at IS NULL AND delete_requested = 0
+                """,
+                (record_id,),
+            )
             if cursor.rowcount == 0:
                 abort(404)
 
-    flash("Task deleted.", "success")
+    if account["role"] == "main":
+        return redirect(url_for("admin", show_delete_requests="1"))
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/<int:record_id>/approve-delete", methods=["POST"])
+def admin_approve_delete(record_id):
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    verify_admin_csrf_token()
+
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        with conn:
+            cursor = conn.execute(
+                """
+                UPDATE job_logs
+                SET deleted_at = ?, delete_requested = 0
+                WHERE id = ? AND delete_requested = 1 AND deleted_at IS NULL
+                """,
+                (now_local().strftime("%Y-%m-%d %I:%M:%S %p"), record_id),
+            )
+            if cursor.rowcount == 0:
+                abort(404)
+
+    flash("Delete request approved.", "success")
+    return redirect(url_for("admin", show_delete_requests="1"))
+
+
+@app.route("/admin/<int:record_id>/restore", methods=["POST"])
+def admin_restore(record_id):
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    verify_admin_csrf_token()
+
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        with conn:
+            cursor = conn.execute(
+                """
+                UPDATE job_logs
+                SET deleted_at = NULL, delete_requested = 0
+                WHERE id = ? AND deleted_at IS NOT NULL
+                """,
+                (record_id,),
+            )
+            if cursor.rowcount == 0:
+                abort(404)
+
+    flash("Task restored to the board.", "success")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/<int:record_id>/reject-delete", methods=["POST"])
+def admin_reject_delete(record_id):
+    account = get_current_admin()
+    if account is None:
+        return redirect(url_for("admin_login"))
+    if account["role"] != "main":
+        abort(403)
+    verify_admin_csrf_token()
+
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        with conn:
+            cursor = conn.execute(
+                """
+                UPDATE job_logs
+                SET delete_requested = 0
+                WHERE id = ? AND delete_requested = 1 AND deleted_at IS NULL
+                """,
+                (record_id,),
+            )
+            if cursor.rowcount == 0:
+                abort(404)
+
+    flash("Delete request rejected. Task returned to the board.", "success")
     return redirect(url_for("admin"))
 
 
@@ -761,10 +909,14 @@ def update_status(job_id):
     if not isinstance(new_status, str) or new_status not in {"pending", "done"}:
         return jsonify({"status": "error", "message": "Choose a valid task status."}), 400
 
-    completed_by = account["display_name"] or account["username"]
-    if new_status == "done" and not completed_by:
+    completed_by = (
+        account["display_name"] or account["username"]
+        if account["role"] == "editor"
+        else None
+    )
+    if new_status == "done" and account["role"] == "editor" and not completed_by:
         return jsonify(
-            {"status": "error", "message": "The admin username is not configured."}
+            {"status": "error", "message": "The editor name is not configured."}
         ), 400
 
     completed_at = (
@@ -777,13 +929,15 @@ def update_status(job_id):
             cursor = conn.execute(
                 """
                 UPDATE job_logs
-                SET status = ?, completed_by = ?, completed_at = ?
+                SET status = ?, completed_by = ?, completed_at = ?,
+                    completed_by_role = ?
                 WHERE id = ?
                 """,
                 (
                     new_status,
                     completed_by if new_status == "done" else None,
                     completed_at,
+                    account["role"] if new_status == "done" else None,
                     job_id,
                 ),
             )
@@ -797,7 +951,11 @@ def update_status(job_id):
             "status": "success",
             "job_id": job_id,
             "status_value": new_status,
-            "completed_by": completed_by if new_status == "done" else "",
+            "completed_by": (
+                completed_by
+                if new_status == "done" and account["role"] == "editor"
+                else ""
+            ),
             "completed_at": completed_at or "",
         }
     )
@@ -830,9 +988,21 @@ def save_log():
         ), 400
 
     work_type = data.get("work_type", "Customer")
+    if not isinstance(work_type, str) or work_type not in {"Customer", "TJ Box"}:
+        return jsonify(
+            {"status": "error", "message": "কাজের ধরন সঠিকভাবে বাছাই করুন।"}
+        ), 400
     customer_id = str(data.get("customer_id") or "").strip()
     splitter_info = str(data.get("splitter_info") or "").strip()
     location = str(data.get("location") or "").strip()
+    if work_type == "Customer" and not customer_id:
+        return jsonify(
+            {"status": "error", "message": "কাস্টমার ID লিখুন।"}
+        ), 400
+    if work_type == "TJ Box" and not location:
+        return jsonify(
+            {"status": "error", "message": "TJ Box-এর লোকেশন লিখুন।"}
+        ), 400
     area = data.get("area")
     if not isinstance(area, str) or area not in AREAS:
         return jsonify(
@@ -876,12 +1046,13 @@ def save_log():
                     area,
                 ),
             )
+            latest_customer_id = get_latest_customer_id(conn)
 
     return jsonify(
         {
             "status": "success",
             "message": "তথ্য সফলভাবে সংরক্ষিত হয়েছে!",
-            "customer_id": customer_id,
+            "customer_id": latest_customer_id,
         }
     )
 

@@ -6,451 +6,877 @@
     <title>ফিল্ড লগ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap">
     <style>
-        #locationMap {
-            height: clamp(360px, 55vh, 620px);
-            z-index: 0;
+        :root {
+            --ground: #F4F1E9;
+            --surface: #FFFFFF;
+            --ink: #16302A;
+            --line: rgba(22, 48, 42, 0.14);
+            --line-strong: rgba(22, 48, 42, 0.24);
+            --action: #1B7F52;
+            --action-deep: #146244;
+            --action-soft: #EAF3ED;
+            --ok: #17855A;
+            --danger: #B3261E;
+            --ring: rgba(27, 127, 82, 0.16);
+            --radius-card: 20px;
+            --radius-field: 14px;
+            --shadow-card: 0 1px 2px rgba(22, 48, 42, 0.04), 0 12px 32px -22px rgba(22, 48, 42, 0.45);
+            --shadow-field: inset 0 1px 2px rgba(22, 48, 42, 0.04);
+            --shadow-action: 0 1px 2px rgba(22, 48, 42, 0.18), 0 10px 24px -14px rgba(20, 98, 68, 0.75);
         }
 
-        @media (max-width: 640px) {
-            #locationMap {
-                height: 52vh;
-                min-height: 340px;
+        body {
+            background: var(--ground);
+            color: var(--ink);
+            font-family: 'Hind Siliguri', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow-card);
+        }
+
+        .field {
+            width: 100%;
+            background: var(--surface);
+            color: var(--ink);
+            border: 1.5px solid var(--line-strong);
+            border-radius: var(--radius-field);
+            box-shadow: var(--shadow-field);
+            transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+        }
+
+        .field:hover {
+            border-color: rgba(22, 48, 42, 0.36);
+        }
+
+        .field:focus,
+        .field:focus-visible {
+            outline: none;
+            border-color: var(--action);
+            box-shadow: 0 0 0 4px var(--ring);
+        }
+
+        .field.is-invalid {
+            border-color: var(--danger);
+            box-shadow: 0 0 0 4px rgba(179, 38, 30, 0.10);
+        }
+
+        .btn {
+            transition: transform .16s cubic-bezier(.2, .8, .2, 1), background-color .18s ease, border-color .18s ease, box-shadow .18s ease, color .18s ease;
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-primary {
+            background: var(--action);
+            color: #FFFFFF;
+            box-shadow: var(--shadow-action);
+        }
+
+        .btn-primary:hover {
+            background: var(--action-deep);
+        }
+
+        .btn-soft {
+            background: var(--surface);
+            color: var(--action-deep);
+            border: 1.5px solid rgba(27, 127, 82, 0.32);
+        }
+
+        .btn-soft:hover {
+            background: var(--action-soft);
+            border-color: rgba(27, 127, 82, 0.45);
+        }
+
+        .map-shell {
+            position: relative;
+            isolation: isolate;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            box-shadow: var(--shadow-field);
+        }
+
+        #mapOverlay {
+            z-index: 1000;
+        }
+
+        .map-chip {
+            position: absolute;
+            z-index: 500;
+            background: rgba(255, 255, 255, 0.94);
+            color: var(--ink);
+            border: 1px solid var(--line-strong);
+            box-shadow: 0 1px 3px rgba(22, 48, 42, 0.16);
+            backdrop-filter: blur(6px);
+            transition: background-color .18s ease, box-shadow .18s ease, transform .16s ease;
+        }
+
+        .map-chip:hover {
+            background: #FFFFFF;
+            box-shadow: 0 3px 10px rgba(22, 48, 42, 0.2);
+        }
+
+        .map-chip:active {
+            transform: translateY(1px);
+        }
+
+        #locationMap {
+            height: 148px;
+            background: #EAE7DB;
+        }
+
+        #fullMap {
+            background: #EAE7DB;
+        }
+
+        .leaflet-container {
+            font-family: inherit;
+        }
+
+        .leaflet-control-attribution {
+            font-size: 9px;
+            line-height: 1.1;
+            padding: 0 3px;
+            background: rgba(255, 255, 255, 0.72);
+            color: var(--ink);
+        }
+
+        .leaflet-control-attribution a {
+            color: var(--ink);
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        /* smoother surfaces */
+        #mapOverlay,
+        #colorSheet {
+            opacity: 0;
+            transition: opacity .22s ease;
+        }
+
+        #mapOverlay.is-open,
+        #colorSheet.is-open {
+            opacity: 1;
+        }
+
+        #colorSheet .sheet-panel {
+            transform: translateY(101%);
+            transition: transform .3s cubic-bezier(.22, .95, .3, 1);
+        }
+
+        #colorSheet.is-open .sheet-panel {
+            transform: translateY(0);
+        }
+
+        .swatch-cell {
+            transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease, transform .16s ease;
+        }
+
+        .swatch-cell:hover {
+            border-color: var(--line-strong);
+            box-shadow: 0 2px 8px -4px rgba(22, 48, 42, 0.35);
+        }
+
+        .swatch-cell.is-selected {
+            border-color: var(--action);
+            background: var(--action-soft);
+            box-shadow: 0 0 0 3px var(--ring);
+        }
+
+        .swatch-chip {
+            border: 1px solid rgba(22, 48, 42, 0.16);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+        }
+
+        #toast {
+            transition: opacity .2s ease, transform .2s ease;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            #colorSheet,
+            #mapOverlay,
+            #colorSheet .sheet-panel,
+            .btn,
+            .field {
+                transition: none !important;
             }
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-3 sm:p-6">
-    <main class="bg-white shadow-xl rounded-2xl w-full max-w-4xl mx-auto p-4 sm:p-6 border border-gray-200">
-        <div class="flex justify-end mb-3">
+<body class="min-h-screen">
+    <div class="mx-auto flex min-h-screen w-full max-w-[430px] flex-col">
+        <header class="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between bg-[#285447] px-4 text-white">
+            <div class="flex items-center gap-2">
+                <i class="ph-bold ph-plugs-connected text-[21px]" aria-hidden="true"></i>
+                <span class="text-[18px] font-semibold leading-none">ফিল্ড লগ</span>
+            </div>
             {% if is_admin_logged_in %}
-            <a href="/admin" class="text-xs text-blue-700 hover:underline">Admin panel</a>
+            <a href="/admin" class="text-[13px] font-medium leading-none text-white/80 underline decoration-white/35 underline-offset-4">Admin panel</a>
             {% else %}
-            <a href="/admin/login" class="text-xs text-blue-700 hover:underline">Admin login</a>
+            <a href="/admin/login" class="text-[13px] font-medium leading-none text-white/80 underline decoration-white/35 underline-offset-4">Admin login</a>
             {% endif %}
-        </div>
+        </header>
 
-        <form id="techForm" class="space-y-4">
-            <section class="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
-                <label for="area" class="block text-sm font-semibold text-indigo-950">Your area</label>
-                <select id="area" required class="mt-2 w-full rounded-lg border border-indigo-200 bg-white px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">এলাকা বাছাই করুন</option>
-                    {% for area in areas %}
-                    <option value="{{ area }}">{{ area }}</option>
-                    {% endfor %}
-                </select>
-                <p id="areaPreferenceStatus" class="mt-1 text-xs text-slate-600">এই ব্রাউজারে বাছাই করা এলাকা মনে রাখা হবে।</p>
-            </section>
+        <form id="techForm" class="flex flex-1 flex-col gap-3 px-4 pb-3 pt-4" novalidate>
+            <input type="hidden" id="work_type" value="Customer">
+            <input type="hidden" id="latitude">
+            <input type="hidden" id="longitude">
+            <input type="hidden" id="location_accuracy">
 
-            <section class="rounded-xl border border-blue-200 overflow-hidden">
-                <div class="flex justify-between items-center p-3">
-                    <span class="text-sm font-semibold text-blue-900">লোকেশন</span>
-                    <button type="button" onclick="fetchLocation()" class="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700">
-                        বর্তমান GPS
-                    </button>
+            <div>
+                <label for="area" class="mb-2 block text-[17px] font-semibold leading-none">এলাকা</label>
+                <div class="relative">
+                    <select id="area" class="field h-12 appearance-none pl-3.5 pr-11 text-[16px] font-semibold leading-none">
+                        <option value="">এলাকা বাছাই করুন</option>
+                        {% for area in areas %}
+                        <option value="{{ area }}">{{ area }}</option>
+                        {% endfor %}
+                    </select>
+                    <i class="ph-bold ph-caret-down pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[18px] text-[#16302A]/60" aria-hidden="true"></i>
                 </div>
-                <div id="locationMap" class="w-full" aria-label="ম্যাপে কাজের লোকেশন নির্বাচন করুন"></div>
-                <p id="locationStatus" class="px-3 py-2 text-xs text-gray-600" role="status" aria-live="polite">লোকেশন খোঁজা হচ্ছে...</p>
-                <input type="hidden" id="latitude">
-                <input type="hidden" id="longitude">
-                <input type="hidden" id="accuracy">
-            </section>
+                <p id="areaError" class="mt-1.5 hidden text-[12.5px] font-medium text-[#B3261E]" role="alert">এলাকা বাছাই করুন</p>
+            </div>
 
-            <fieldset>
-                <legend class="block text-sm font-semibold text-gray-700 mb-2">কাজের ধরন</legend>
-                <div class="grid grid-cols-2 gap-3">
-                    <label class="flex items-center justify-center p-3 border rounded-xl cursor-pointer has-[:checked]:bg-blue-50 has-[:checked]:border-blue-600 text-sm">
-                        <input type="radio" name="work_type" value="Customer" checked class="mr-2" onchange="toggleFields()"> টিম ইউজার
+            <div class="flex h-14 items-center gap-1 rounded-2xl bg-[#16302A]/[0.06] p-1" role="group" aria-label="কাজের ধরন">
+                <button type="button" data-work-type="Customer" class="work-tab btn h-full flex-1 rounded-xl text-[16px] leading-none">কাস্টমার</button>
+                <button type="button" data-work-type="TJ Box" class="work-tab btn h-full flex-1 rounded-xl text-[16px] leading-none">TJ বক্স</button>
+            </div>
+
+            <div id="customerBlock">
+                <div class="mb-2 flex items-baseline justify-between gap-2">
+                    <label for="customer_id" class="text-[17px] font-semibold leading-none">কাস্টমার ID</label>
+                    <span id="latestCustomerWrap" hidden class="inline-flex items-center gap-1 rounded-full border border-[#1B7F52]/20 bg-[#EAF3ED] px-2.5 py-1 text-[11.5px] font-medium leading-none text-[#146244]">
+                        Last Use:
+                        <button type="button" id="useLatestCustomerId" class="ml-0.5 font-semibold underline decoration-[#146244]/40 underline-offset-2"><span id="latestCustomerId" class="font-bold tabular-nums text-[#16302A]"></span></button>
+                    </span>
+                </div>
+                <input type="text" id="customer_id" inputmode="numeric" autocomplete="off" required placeholder="কাস্টমার ID লিখুন" class="field h-14 px-3.5 text-[17px] font-medium leading-none placeholder:font-normal placeholder:text-[#16302A]/38">
+                <p id="customerError" class="mt-1.5 hidden text-[12.5px] font-medium text-[#B3261E]" role="alert">কাস্টমার ID লিখুন</p>
+            </div>
+
+            <div id="tjBlock" class="hidden space-y-3">
+                <div class="grid grid-cols-[minmax(0,1fr)_104px] gap-2">
+                    <label class="block min-w-0" for="tj_location">
+                        <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">বক্সের নাম</span>
+                        <input type="text" id="tj_location" autocomplete="off" placeholder="বক্সের নাম" class="field h-12 px-3 text-[15px] font-medium leading-none placeholder:font-normal placeholder:text-[#16302A]/38">
                     </label>
-                    <label class="flex items-center justify-center p-3 border rounded-xl cursor-pointer has-[:checked]:bg-blue-50 has-[:checked]:border-blue-600 text-sm">
-                        <input type="radio" name="work_type" value="TJ Box" class="mr-2" onchange="toggleFields()"> TJ Box
-                    </label>
-                </div>
-            </fieldset>
-
-            <section id="tjLocationSection" class="hidden rounded-xl border p-4">
-                <label for="tj_location" class="block text-sm font-semibold text-gray-700 mb-2">লোকেশন</label>
-                <input type="text" id="tj_location" autocomplete="off" placeholder="লোকেশনের নাম লিখুন" class="w-full border rounded-lg px-3 py-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
-            </section>
-
-            <section id="customerIdSection" class="rounded-xl border p-4">
-                <label for="customer_id" class="block text-sm font-semibold text-gray-700 mb-2">কাস্টমার ID</label>
-                <input type="text" id="customer_id" autocomplete="off" placeholder="কাস্টমার ID লিখুন" class="w-full border rounded-lg px-3 py-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
-                <div id="latestCustomerWrap" class="hidden mt-2 text-xs text-gray-600">
-                    সর্বশেষ: <span id="latestCustomerId" class="font-semibold"></span>
-                    <button type="button" id="useLatestCustomerId" class="ml-2 text-blue-700 underline">ব্যবহার করুন</button>
-                </div>
-                <p id="latestCustomerError" class="hidden mt-2 text-xs text-red-600"></p>
-            </section>
-
-            <details class="rounded-xl border">
-                <summary class="cursor-pointer select-none p-4 font-semibold text-gray-800">More options</summary>
-                <div class="space-y-5 border-t p-4">
-                    <div id="customerSection" class="grid sm:grid-cols-2 gap-3">
-                        <label class="block text-xs font-semibold text-gray-700">
-                            ONU ID / সিরিয়াল / MAC
-                            <input type="text" id="onu_id" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-normal">
-                        </label>
-                        <label class="block text-xs font-semibold text-gray-700">
-                            কাস্টমার নাম / রেফারেন্স
-                            <input type="text" id="customer_name" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-normal">
-                        </label>
-                    </div>
-
-                    <div id="tjSection" class="hidden space-y-4">
-                        <label class="block text-xs font-semibold text-gray-700">
-                            Splitter
-                            <select id="splitter_info" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-normal">
-                                <option value="">বাছাই করুন</option>
+                    <label class="block" for="splitter_info">
+                        <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">স্প্লিটার</span>
+                        <span class="relative block">
+                            <select id="splitter_info" class="field h-12 appearance-none pl-2.5 pr-7 text-[15px] font-semibold tabular-nums leading-none">
+                                <option value="">বাছাই</option>
                                 <option>1:4</option>
                                 <option>1:8</option>
                                 <option>1:16</option>
                                 <option>1:32</option>
-                                <option value="Other">Other</option>
+                                <option value="Other">অন্যান্য</option>
                             </select>
-                        </label>
-                        <label id="customSplitterWrap" class="hidden block text-xs font-semibold text-gray-700">
-                            Splitter নাম / অনুপাত
-                            <input type="text" id="customSplitter" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-normal">
-                        </label>
+                            <i class="ph-bold ph-caret-down pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[14px] text-[#16302A]/55" aria-hidden="true"></i>
+                        </span>
+                    </label>
+                </div>
+                <p id="tjLocationError" class="hidden text-[12.5px] font-medium text-[#B3261E]" role="alert">বক্সের লোকেশন লিখুন</p>
+                <label id="customSplitterWrap" class="block" hidden for="customSplitter">
+                    <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">স্প্লিটারের নাম / অনুপাত</span>
+                    <input type="text" id="customSplitter" autocomplete="off" class="field h-12 px-3 text-[15px] font-medium leading-none">
+                </label>
+            </div>
 
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-semibold text-gray-700">জোড়া / কোর</span>
-                                <button type="button" id="addPair" class="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">+ যোগ</button>
-                            </div>
-                            <div id="pairsList" class="space-y-3"></div>
-                        </div>
+            <section id="pairsSection" class="hidden">
+                <div class="mb-1.5 flex items-center justify-between">
+                    <h2 class="text-[14px] font-semibold leading-none">জোড়া / কোর</h2>
+                    <span class="text-[12px] font-medium leading-none text-[#16302A]/55">
+                        <span id="pairCount" class="tabular-nums">০</span> জোড়া
+                    </span>
+                </div>
+                <div id="pairsList" class="space-y-2"></div>
+                <button type="button" id="addPair" class="btn mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#1B7F52]/45 text-[13px] font-semibold leading-none text-[#146244] hover:bg-[#EAF3ED]">
+                    <i class="ph-bold ph-plus text-[13px]" aria-hidden="true"></i>জোড়া যোগ করুন
+                </button>
+            </section>
+
+            <details class="card overflow-hidden">
+                <summary class="flex cursor-pointer select-none items-center justify-between px-4 py-4 text-[16px] font-semibold leading-none">
+                    <span class="flex items-center gap-2">
+                        <i class="ph-bold ph-sliders-horizontal text-[18px]" aria-hidden="true"></i>আরও তথ্য
+                    </span>
+                    <i class="ph-bold ph-plus text-[18px] text-[#16302A]/55" aria-hidden="true"></i>
+                </summary>
+                <div class="space-y-3 border-t border-[#16302A]/10 p-3">
+                    <div id="customerExtra" class="grid grid-cols-1 gap-3">
+                        <label class="block" for="onu_id">
+                            <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">ONU ID / সিরিয়াল / MAC</span>
+                            <input type="text" id="onu_id" autocomplete="off" class="field h-12 px-3 text-[15px] font-medium leading-none">
+                        </label>
+                        <label class="block" for="customer_name">
+                            <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">কাস্টমার নাম / রেফারেন্স</span>
+                            <input type="text" id="customer_name" autocomplete="off" class="field h-12 px-3 text-[15px] font-medium leading-none">
+                        </label>
                     </div>
-
-                    <fieldset>
-                        <legend class="block text-xs font-semibold text-gray-700 mb-2">ফাইবার রিডিং (মিটার)</legend>
-                        <div class="grid grid-cols-2 gap-3">
-                            <label class="text-xs text-gray-600">শুরু
-                                <input type="number" id="start_meter" oninput="calculateFiber()" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">
+                    <div>
+                        <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">ফাইবার রিডিং (মিটার)</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="block" for="start_meter">
+                                <span class="mb-1 block text-[12px] leading-none text-[#16302A]/55">শুরু</span>
+                                <input type="number" inputmode="decimal" id="start_meter" class="field h-12 px-3 text-[15px] tabular-nums">
                             </label>
-                            <label class="text-xs text-gray-600">শেষ
-                                <input type="number" id="end_meter" oninput="calculateFiber()" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm">
+                            <label class="block" for="end_meter">
+                                <span class="mb-1 block text-[12px] leading-none text-[#16302A]/55">শেষ</span>
+                                <input type="number" inputmode="decimal" id="end_meter" class="field h-12 px-3 text-[15px] tabular-nums">
                             </label>
                         </div>
-                        <p class="mt-2 text-xs text-gray-600">মোট: <span id="totalFiberDisplay" class="font-bold text-blue-700">০</span> মিটার</p>
-                    </fieldset>
-
-                    <label class="block text-xs font-semibold text-gray-700">
-                        নোট
-                        <textarea id="notes" rows="2" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-normal"></textarea>
+                        <p class="mt-1.5 text-[12.5px] leading-none text-[#16302A]/55">মোট <span id="totalFiberDisplay" class="font-semibold tabular-nums text-[#16302A]">০</span> মিটার</p>
+                    </div>
+                    <label class="block" for="notes">
+                        <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">নোট</span>
+                        <textarea id="notes" rows="2" class="field px-3 py-2 text-[15px] leading-snug"></textarea>
                     </label>
                 </div>
             </details>
 
-            <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow transition">
-                সেভ
-            </button>
+            <div class="-mx-4 mt-1 border-t border-[#16302A]/10 bg-[#F4F1E9]/95 px-4 pb-3 pt-2">
+                <button type="submit" id="submitBtn" class="btn btn-primary flex h-14 w-full items-center justify-center gap-2 rounded-full text-[17px] font-semibold leading-none disabled:opacity-70">
+                    <i class="ph-bold ph-check text-[18px]" aria-hidden="true"></i><span id="submitLabel">সেভ</span>
+                </button>
+            </div>
+
+            <section class="card p-3">
+                <div class="mb-2 flex items-center justify-between">
+                    <span class="flex items-center gap-1.5 text-[16px] font-semibold leading-none">
+                        <i class="ph-bold ph-map-pin text-[17px]" aria-hidden="true"></i>
+                        <span id="locationTitle">লোকেশন</span>
+                    </span>
+                </div>
+                <div class="map-shell">
+                    <div id="locationMap" aria-label="ম্যাপে কাজের লোকেশন বাছাই করুন"></div>
+                    <button type="button" id="pinHereBtn" class="map-chip absolute bottom-2 left-2 flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold leading-none">
+                        <i class="ph-bold ph-map-pin text-[14px]" aria-hidden="true"></i>পিন বসান
+                    </button>
+                    <button type="button" id="openMapBtn" class="map-chip absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full" aria-label="পুরো ম্যাপে খুলুন" title="পুরো ম্যাপে খুলুন">
+                        <i class="ph-bold ph-corners-out text-[15px]" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <button type="button" id="gpsBtn" class="btn btn-soft mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-full text-[14px] font-semibold leading-none">
+                    <i class="ph-bold ph-crosshair text-[16px]" aria-hidden="true"></i>বর্তমান GPS
+                </button>
+                <p id="locationStatus" class="mt-2 text-[12px] font-medium leading-tight text-[#16302A]/55" role="status" aria-live="polite"></p>
+            </section>
         </form>
-    </main>
+    </div>
+
+    <div id="mapOverlay" class="fixed inset-0 z-40 bg-white" hidden>
+        <div class="mx-auto flex h-full w-full max-w-[430px] flex-col">
+            <header class="flex h-14 shrink-0 items-center justify-between bg-[#285447] px-4 text-white">
+                <button type="button" id="closeMapBtn" class="btn flex h-10 items-center gap-1.5 rounded-full border border-white/30 bg-[#F4F1E9] px-3 text-[14px] font-semibold text-[#16302A] hover:bg-white">
+                    <i class="ph-bold ph-arrow-left text-[18px]" aria-hidden="true"></i>ফিরে যান
+                </button>
+                <span class="text-[16px] font-semibold">লোকেশন</span>
+            </header>
+            <div class="relative min-h-0 flex-1">
+                <div id="fullMap" class="h-full w-full"></div>
+                <button type="button" id="centerPinBtn" class="map-chip absolute bottom-4 left-1/2 flex h-11 -translate-x-1/2 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold leading-none">
+                    <i class="ph-bold ph-map-pin text-[15px]" aria-hidden="true"></i>এখানে পিন বসান
+                </button>
+            </div>
+            <div class="shrink-0 border-t border-[#16302A]/12 bg-white px-4 pb-4 pt-3">
+                <button type="button" id="saveFromMapBtn" class="btn btn-primary flex h-14 w-full items-center justify-center gap-2 rounded-full text-[16px] font-semibold leading-none">
+                    <i class="ph-bold ph-check text-[18px]" aria-hidden="true"></i>সেভ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="colorSheet" class="fixed inset-0 z-[70]" hidden>
+        <div class="absolute inset-0 bg-[#16302A]/40" data-close-sheet></div>
+        <div class="sheet-panel absolute inset-x-0 bottom-0 mx-auto w-full max-w-[430px] rounded-t-2xl bg-white shadow-[0_-16px_44px_-20px_rgba(22,48,42,0.6)]">
+            <div class="mx-auto mb-2 mt-2 h-1 w-9 rounded-full bg-[#16302A]/15" aria-hidden="true"></div>
+            <div class="mb-2 flex items-center justify-between gap-2 px-3">
+                <p class="text-[12.5px] font-medium leading-none text-[#16302A]/55">
+                    <span id="sheetTarget" class="font-semibold text-[#16302A]"></span>
+                    <span class="px-1">·</span>
+                    <span id="sheetSlot"></span>
+                </p>
+                <button type="button" id="customColorBtn" class="text-[12px] font-semibold leading-none text-[#146244] underline decoration-[#146244]/40 underline-offset-2">নিজস্ব রং</button>
+            </div>
+            <div id="colorGrid" class="grid grid-cols-3 gap-1.5 px-3"></div>
+            <div id="customColorWrap" class="mt-2 px-3" hidden>
+                <input type="text" id="customColorInput" autocomplete="off" placeholder="রঙের নাম" class="field h-12 px-3 text-[15px] font-medium">
+                <button type="button" id="customColorSave" class="btn btn-primary mt-2 h-12 w-full rounded-xl text-[15px] font-semibold text-white">রং বসান</button>
+            </div>
+            <div class="p-3">
+                <button type="button" id="closeSheetBtn" class="btn h-11 w-full rounded-xl border border-[#16302A]/15 text-[14px] font-semibold text-[#16302A]/65 hover:bg-[#16302A]/[0.04]">বন্ধ করুন</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="pointer-events-none fixed inset-x-0 top-14 z-[60] px-4" hidden>
+        <p id="toastText" class="mx-auto max-w-[400px] rounded-xl bg-[#16302A] px-4 py-3 text-[14px] font-medium leading-snug text-white shadow-[0_12px_30px_-16px_rgba(22,48,42,0.9)]" role="status" aria-live="polite"></p>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const locationMap = L.map('locationMap').setView([23.8103, 90.4125], 13);
-        let locationMarker = null;
+        const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        const DEFAULT_VIEW = [23.8103, 90.4125];
+        const AREA_STORAGE_KEY = 'technician-area-v1';
+        const COLORS = [
+            { value: 'Blue', label: 'নীল', hex: '#2563EB' },
+            { value: 'Orange', label: 'কমলা', hex: '#F97316' },
+            { value: 'Green', label: 'সবুজ', hex: '#16A34A' },
+            { value: 'Brown', label: 'বাদামি', hex: '#8A4B27' },
+            { value: 'Slate', label: 'স্লেট', hex: '#64748B' },
+            { value: 'White', label: 'সাদা', hex: '#FFFFFF' },
+            { value: 'Red', label: 'লাল', hex: '#DC2626' },
+            { value: 'Black', label: 'কালো', hex: '#1F2937' },
+            { value: 'Yellow', label: 'হলুদ', hex: '#F2B705' },
+            { value: 'Violet', label: 'বেগুনি', hex: '#7C3AED' },
+            { value: 'Rose', label: 'গোলাপি', hex: '#EC4899' },
+            { value: 'Aqua', label: 'আকাশি', hex: '#06B6D4' }
+        ];
+        const SLOT_LABEL = { color1: 'ইনপুট ফাইবার', color2: 'আউটপুট ফাইবার' };
+        const CUSTOM_HEX = '#D8D2C2';
+        const BN_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+
+        const state = { lat: null, lng: null, accuracy: 0, source: null, workType: 'Customer' };
         let latestCustomerId = '';
-        let pairCount = 0;
-        const areaStorageKey = 'technician-area-v1';
-        const defaultColors = [
-            ['Blue', 'নীল'], ['Orange', 'কমলা'], ['Green', 'সবুজ'],
-            ['Brown', 'বাদামি'], ['Slate', 'স্লেট'], ['White', 'সাদা']
-        ];
-        const additionalColors = [
-            ['Red', 'লাল'], ['Black', 'কালো'], ['Yellow', 'হলুদ'],
-            ['Violet', 'বেগুনি'], ['Rose', 'গোলাপি'], ['Aqua', 'আকাশি']
-        ];
+        let map = null;
+        let marker = null;
+        let fullMap = null;
+        let fullMarker = null;
+        let activeColorRow = null;
+        let activeColorSlot = null;
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(locationMap);
+        const el = (id) => document.getElementById(id);
 
-        function setSelectedLocation(latitude, longitude, accuracy, source) {
-            document.getElementById('latitude').value = latitude;
-            document.getElementById('longitude').value = longitude;
-            document.getElementById('accuracy').value = accuracy;
-            document.getElementById('locationStatus').innerText = source === 'map'
-                ? 'ম্যাপ থেকে লোকেশন নেওয়া হয়েছে'
-                : 'GPS নির্ভুলতা: ' + Math.round(accuracy) + ' মিটার';
+        function toBangla(value) {
+            return String(value).replace(/\d/g, (digit) => BN_DIGITS[Number(digit)]);
+        }
 
-            if (locationMarker) {
-                locationMarker.setLatLng([latitude, longitude]);
-            } else {
-                locationMarker = L.marker([latitude, longitude], { draggable: true }).addTo(locationMap);
-                locationMarker.on('dragend', () => {
-                    const position = locationMarker.getLatLng();
-                    setSelectedLocation(position.lat, position.lng, 0, 'map');
+        function makePin() {
+            return L.divIcon({
+                className: '',
+                html: '<span style="display:block;line-height:1;font-size:32px;color:#1B7F52;filter:drop-shadow(0 2px 3px rgba(22,48,42,0.35))"><i class="ph-fill ph-map-pin"></i></span>',
+                iconSize: [32, 32],
+                iconAnchor: [16, 30]
+            });
+        }
+
+        function addTiles(target) {
+            L.tileLayer(TILE_URL, { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(target);
+        }
+
+        function setLocation(lat, lng, accuracy, source) {
+            state.lat = lat;
+            state.lng = lng;
+            state.accuracy = accuracy || 0;
+            state.source = source;
+            el('latitude').value = lat;
+            el('longitude').value = lng;
+            el('location_accuracy').value = accuracy || 0;
+            if (map) {
+                if (marker) {
+                    marker.setLatLng([lat, lng]);
+                } else {
+                    marker = L.marker([lat, lng], { draggable: true, icon: makePin() }).addTo(map);
+                    marker.on('dragend', () => {
+                        const position = marker.getLatLng();
+                        setLocation(position.lat, position.lng, 0, 'map');
+                    });
+                }
+            }
+            el('locationStatus').textContent = '';
+        }
+
+        function requestCurrentPosition() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject({ code: 0 });
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
                 });
+            });
+        }
+
+        async function useCurrentGps() {
+            el('locationStatus').textContent = 'GPS খোঁজা হচ্ছে...';
+            try {
+                const position = await requestCurrentPosition();
+                setLocation(position.coords.latitude, position.coords.longitude, position.coords.accuracy, 'gps');
+                if (map) map.setView([position.coords.latitude, position.coords.longitude], 17);
+            } catch (error) {
+                el('locationStatus').textContent = error && error.code === 1
+                    ? 'লোকেশন অনুমতি বন্ধ আছে; ব্রাউজারের সাইট সেটিংসে অনুমতি দিন'
+                    : 'GPS পাওয়া যায়নি; ম্যাপে লোকেশন বাছুন';
             }
         }
 
-        locationMap.on('click', (event) => {
-            setSelectedLocation(event.latlng.lat, event.latlng.lng, 0, 'map');
-        });
-
-        function fetchLocation() {
-            const status = document.getElementById('locationStatus');
-            status.innerText = 'GPS খোঁজা হচ্ছে...';
-            if (!navigator.geolocation) {
-                status.innerText = 'GPS পাওয়া যায়নি; ম্যাপে লোকেশন বাছুন';
-                return;
-            }
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const { latitude, longitude, accuracy } = position.coords;
-                    setSelectedLocation(latitude, longitude, accuracy, 'gps');
-                    locationMap.setView([latitude, longitude], 18);
-                },
-                () => {
-                    status.innerText = 'GPS পাওয়া যায়নি; ম্যাপে লোকেশন বাছুন';
-                },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-            );
+        function initMap() {
+            L.DomEvent.disableClickPropagation(el('colorSheet'));
+            map = L.map('locationMap', { zoomControl: false, scrollWheelZoom: false, attributionControl: true })
+                .setView(DEFAULT_VIEW, 13);
+            addTiles(map);
+            map.on('click', (event) => {
+                setLocation(event.latlng.lat, event.latlng.lng, 0, 'map');
+            });
         }
 
-        function toggleFields() {
-            const isCustomer = document.querySelector('input[name="work_type"]:checked').value === 'Customer';
-            document.getElementById('customerIdSection').classList.toggle('hidden', !isCustomer);
-            document.getElementById('customerSection').classList.toggle('hidden', !isCustomer);
-            document.getElementById('tjSection').classList.toggle('hidden', isCustomer);
-            document.getElementById('tjLocationSection').classList.toggle('hidden', isCustomer);
-            document.getElementById('customer_id').required = isCustomer;
+        function dropPinAtCenter() {
+            if (!map) return;
+            const center = map.getCenter();
+            setLocation(center.lat, center.lng, 0, 'map');
+        }
+
+        function openFullMap() {
+            const overlay = el('mapOverlay');
+            overlay.hidden = false;
+            document.body.style.overflow = 'hidden';
+            requestAnimationFrame(() => overlay.classList.add('is-open'));
+            const start = state.lat !== null ? [state.lat, state.lng] : DEFAULT_VIEW;
+            if (!fullMap) {
+                fullMap = L.map('fullMap', {
+                    zoomControl: true,
+                    attributionControl: true,
+                    dragging: true,
+                    touchZoom: true,
+                    scrollWheelZoom: true
+                }).setView(start, 17);
+                addTiles(fullMap);
+                fullMarker = L.marker(start, { draggable: true, icon: makePin() }).addTo(fullMap);
+                fullMap.on('click', (event) => {
+                    fullMarker.setLatLng(event.latlng);
+                });
+            } else {
+                fullMarker.setLatLng(start);
+            }
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                fullMap.invalidateSize({ pan: false });
+                fullMap.setView(fullMarker.getLatLng(), 17);
+            }));
+        }
+
+        function centerFullMapPin() {
+            if (!fullMap || !fullMarker) return;
+            const center = fullMap.getCenter();
+            fullMarker.setLatLng(center);
+        }
+
+        function closeFullMap() {
+            const overlay = el('mapOverlay');
+            overlay.classList.remove('is-open');
+            document.body.style.overflow = '';
+            window.setTimeout(() => { overlay.hidden = true; }, 200);
+        }
+
+        function confirmFullMap() {
+            const point = fullMarker.getLatLng();
+            setLocation(point.lat, point.lng, 0, 'map');
+            if (map) map.setView([point.lat, point.lng], 17);
+            closeFullMap();
+        }
+
+        function saveFromFullMap() {
+            confirmFullMap();
+            el('techForm').requestSubmit();
+        }
+
+        function setWorkType(workType) {
+            state.workType = workType;
+            el('work_type').value = workType;
+            document.querySelectorAll('.work-tab').forEach((tab) => {
+                const isActive = tab.dataset.workType === workType;
+                tab.classList.toggle('bg-white', isActive);
+                tab.classList.toggle('shadow-[0_1px_3px_rgba(22,48,42,0.18)]', isActive);
+                tab.classList.toggle('text-[#16302A]', isActive);
+                tab.classList.toggle('font-semibold', isActive);
+                tab.classList.toggle('text-[#16302A]/55', !isActive);
+                tab.classList.toggle('font-medium', !isActive);
+                tab.setAttribute('aria-pressed', String(isActive));
+            });
+            const isCustomer = workType === 'Customer';
+            el('customerBlock').classList.toggle('hidden', !isCustomer);
+            el('tjBlock').classList.toggle('hidden', isCustomer);
+            el('pairsSection').classList.toggle('hidden', isCustomer);
+            el('customerExtra').classList.toggle('hidden', !isCustomer);
+            el('customer_id').required = isCustomer;
+            el('locationTitle').textContent = isCustomer ? 'লোকেশন' : 'বক্সের লোকেশন';
+            setFieldError(el('customer_id'), el('customerError'), false);
+            setFieldError(el('tj_location'), el('tjLocationError'), false);
+        }
+
+        function updatePairNumbers() {
+            const rows = Array.from(el('pairsList').children);
+            rows.forEach((row, index) => {
+                row.querySelector('.pair-index').textContent = toBangla(index + 1);
+                row.querySelector('.pair-remove').hidden = rows.length === 1;
+            });
+            el('pairCount').textContent = toBangla(rows.length);
+        }
+
+        function applyColor(button, value, label, hex) {
+            button.dataset.value = value;
+            button.querySelector('.pair-swatch').style.background = hex;
+            button.querySelector('.pair-color-label').textContent = label;
+        }
+
+        function createColorButton(slot) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.slot = slot;
+            button.className = 'pair-color field flex h-10 min-w-0 flex-1 items-center gap-1.5 px-2 text-left';
+            button.innerHTML = [
+                '<span class="pair-swatch swatch-chip h-4 w-4 shrink-0 rounded-full"></span>',
+                '<span class="pair-color-label truncate text-[13px] font-semibold leading-none"></span>',
+                '<i class="ph-bold ph-caret-down ml-auto shrink-0 text-[11px] text-[#16302A]/35" aria-hidden="true"></i>'
+            ].join('');
+            button.addEventListener('click', () => openColorSheet(button));
+            return button;
+        }
+
+        function addPair(preset) {
+            const row = document.createElement('div');
+            row.className = 'pair-row card p-2';
+            const top = document.createElement('div');
+            top.className = 'flex items-center gap-1.5';
+
+            const index = document.createElement('span');
+            index.className = 'pair-index w-4 shrink-0 text-center text-[11px] font-semibold tabular-nums leading-none text-[#16302A]/40';
+            const inputButton = createColorButton('color1');
+            const arrow = document.createElement('i');
+            arrow.className = 'ph-bold ph-arrow-right shrink-0 text-[11px] text-[#16302A]/25';
+            arrow.setAttribute('aria-hidden', 'true');
+            const outputButton = createColorButton('color2');
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'pair-remove btn grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#16302A]/40 hover:bg-[#F4F1E9] hover:text-[#B3261E]';
+            remove.setAttribute('aria-label', 'জোড়া বাদ দিন');
+            remove.innerHTML = '<i class="ph-bold ph-x text-[12px]" aria-hidden="true"></i>';
+            remove.addEventListener('click', () => {
+                if (el('pairsList').children.length === 1) return;
+                row.remove();
+                updatePairNumbers();
+            });
+            top.append(index, inputButton, arrow, outputButton, remove);
+
+            const bottom = document.createElement('div');
+            bottom.className = 'mt-1.5 flex items-center gap-1.5 pl-[22px]';
+            const downIcon = document.createElement('i');
+            downIcon.className = 'ph-bold ph-arrow-elbow-down-right shrink-0 text-[12px] text-[#16302A]/35';
+            downIcon.setAttribute('aria-hidden', 'true');
+            const downField = document.createElement('input');
+            downField.type = 'text';
+            downField.autocomplete = 'off';
+            downField.placeholder = 'ডাউন লোকেশন';
+            downField.className = 'pair-location field h-10 min-w-0 flex-1 px-2.5 text-[13px] leading-none placeholder:text-[#16302A]/35';
+            bottom.append(downIcon, downField);
+
+            const first = preset && preset.color1 ? preset.color1 : { value: 'Blue', label: 'নীল', hex: '#2563EB' };
+            const second = preset && preset.color2 ? preset.color2 : { value: 'Orange', label: 'কমলা', hex: '#F97316' };
+            applyColor(inputButton, first.value, first.label, first.hex);
+            applyColor(outputButton, second.value, second.label, second.hex);
+            if (preset && preset.location) downField.value = preset.location;
+
+            row.append(top, bottom);
+            el('pairsList').appendChild(row);
+            updatePairNumbers();
+        }
+
+        function buildColorGrid() {
+            const grid = el('colorGrid');
+            if (grid.dataset.ready === '1') return;
+            COLORS.forEach((color) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'swatch-cell flex h-12 items-center gap-2 rounded-xl border border-[#16302A]/12 bg-white px-2.5 text-left';
+                button.innerHTML = [
+                    '<span class="swatch-chip h-4 w-4 shrink-0 rounded-full" style="background:' + color.hex + '"></span>',
+                    '<span class="text-[13px] font-medium leading-none">' + color.label + '</span>'
+                ].join('');
+                button.addEventListener('click', () => {
+                    if (!activeColorRow || !activeColorSlot) return;
+                    applyColor(activeColorRow, color.value, color.label, color.hex);
+                    closeColorSheet();
+                });
+                grid.appendChild(button);
+            });
+            grid.dataset.ready = '1';
+        }
+
+        function openColorSheet(button) {
+            activeColorRow = button;
+            activeColorSlot = button.dataset.slot;
+            const row = button.closest('.pair-row');
+            el('sheetTarget').textContent = 'জোড়া ' + row.querySelector('.pair-index').textContent;
+            el('sheetSlot').textContent = SLOT_LABEL[activeColorSlot] || '';
+            el('customColorWrap').hidden = true;
+            el('customColorInput').value = '';
+            buildColorGrid();
+            const sheet = el('colorSheet');
+            sheet.hidden = false;
+            document.body.style.overflow = 'hidden';
+            requestAnimationFrame(() => sheet.classList.add('is-open'));
+        }
+
+        function closeColorSheet() {
+            const sheet = el('colorSheet');
+            sheet.classList.remove('is-open');
+            document.body.style.overflow = '';
+            activeColorRow = null;
+            activeColorSlot = null;
+            window.setTimeout(() => { sheet.hidden = true; }, 260);
+        }
+
+        function applyCustomColor() {
+            const value = el('customColorInput').value.trim();
+            if (!value || !activeColorRow) return;
+            applyColor(activeColorRow, value, value, CUSTOM_HEX);
+            closeColorSheet();
         }
 
         function calculateFiber() {
-            const start = parseFloat(document.getElementById('start_meter').value) || 0;
-            const end = parseFloat(document.getElementById('end_meter').value) || 0;
-            document.getElementById('totalFiberDisplay').innerText = Math.abs(end - start);
+            const start = parseFloat(el('start_meter').value) || 0;
+            const end = parseFloat(el('end_meter').value) || 0;
+            el('totalFiberDisplay').textContent = toBangla(Math.abs(end - start));
+        }
+
+        function showToast(message, isError) {
+            const toast = el('toast');
+            const text = el('toastText');
+            text.textContent = message;
+            text.classList.toggle('bg-[#B3261E]', Boolean(isError));
+            text.classList.toggle('bg-[#16302A]', !isError);
+            toast.hidden = false;
+            window.clearTimeout(showToast.timer);
+            showToast.timer = window.setTimeout(() => { toast.hidden = true; }, 4000);
         }
 
         function rememberArea() {
-            const areaSelect = document.getElementById('area');
-            const status = document.getElementById('areaPreferenceStatus');
             try {
-                if (areaSelect.value) {
-                    localStorage.setItem(areaStorageKey, areaSelect.value);
+                const value = el('area').value;
+                if (value) {
+                    localStorage.setItem(AREA_STORAGE_KEY, value);
                 } else {
-                    localStorage.removeItem(areaStorageKey);
+                    localStorage.removeItem(AREA_STORAGE_KEY);
                 }
-                status.innerText = 'এই ব্রাউজারে বাছাই করা এলাকা মনে রাখা হবে।';
-                status.classList.remove('text-red-600');
-                status.classList.add('text-slate-600');
             } catch (error) {
-                status.innerText = 'এই ব্রাউজারে এলাকা সংরক্ষণ করা যায়নি; প্রতিবার বাছাই করুন।';
-                status.classList.remove('text-slate-600');
-                status.classList.add('text-red-600');
+                /* ব্রাউজারে সংরক্ষণ না হলেও ফর্ম কাজ করবে */
             }
         }
 
         function restoreArea() {
-            const areaSelect = document.getElementById('area');
             try {
-                const savedArea = localStorage.getItem(areaStorageKey);
-                if (Array.from(areaSelect.options).some((option) => option.value === savedArea)) {
-                    areaSelect.value = savedArea;
+                const saved = localStorage.getItem(AREA_STORAGE_KEY);
+                const options = Array.from(el('area').options);
+                if (saved && options.some((option) => option.value === saved)) {
+                    el('area').value = saved;
                 }
             } catch (error) {
-                const status = document.getElementById('areaPreferenceStatus');
-                status.innerText = 'এই ব্রাউজারে এলাকা সংরক্ষণ করা যায়নি; প্রতিবার বাছাই করুন।';
-                status.classList.remove('text-slate-600');
-                status.classList.add('text-red-600');
+                /* কিছু করার নেই */
             }
         }
-
-        function addPair() {
-            const pairNumber = ++pairCount;
-            const row = document.createElement('div');
-            row.className = 'rounded-lg border p-3';
-
-            const heading = document.createElement('div');
-            heading.className = 'flex items-center justify-between mb-2';
-            const title = document.createElement('span');
-            title.className = 'text-xs font-semibold text-gray-700';
-            title.innerText = 'জোড়া / কোর ' + pairNumber;
-            heading.appendChild(title);
-
-            if (pairNumber > 1) {
-                const remove = document.createElement('button');
-                remove.type = 'button';
-                remove.className = 'text-xs text-red-600';
-                remove.innerText = 'বাদ';
-                remove.addEventListener('click', () => row.remove());
-                heading.appendChild(remove);
-            }
-            row.appendChild(heading);
-
-            const grid = document.createElement('div');
-            grid.className = 'grid sm:grid-cols-2 gap-2';
-
-            const colorGrid = document.createElement('div');
-            colorGrid.className = 'grid grid-cols-2 gap-1.5 mb-2';
-            colorGrid.append(
-                createColorPicker('ইনপুট ফাইবার', 'core1-color', 'Blue'),
-                createColorPicker('আউটপুট ফাইবার', 'core2-color', 'Orange')
-            );
-
-            const locationLabel = document.createElement('label');
-            locationLabel.className = 'text-xs text-gray-600';
-            locationLabel.append('জোড়ার লোকেশন');
-            const pairLocation = document.createElement('input');
-            pairLocation.type = 'text';
-            pairLocation.placeholder = 'লোকেশন / পোর্ট';
-            pairLocation.className = 'pair-location mt-1 w-full border rounded-lg px-2 py-2 text-sm';
-            locationLabel.appendChild(pairLocation);
-
-            grid.className = 'grid grid-cols-1 gap-2';
-            grid.appendChild(locationLabel);
-            row.append(colorGrid, grid);
-            document.getElementById('pairsList').appendChild(row);
-        }
-
-        function createColorPicker(labelText, className, defaultColor) {
-            const label = document.createElement('label');
-            label.className = 'text-[10px] leading-tight text-gray-600';
-            label.append(labelText);
-
-            const select = document.createElement('select');
-            select.className = className + ' mt-1 w-full min-w-0 border rounded-md px-1 py-1 text-xs';
-            defaultColors.forEach(([value, text]) => {
-                const option = document.createElement('option');
-                option.value = value;
-                option.innerText = text;
-                option.selected = value === defaultColor;
-                select.appendChild(option);
-            });
-            const moreOption = document.createElement('option');
-            moreOption.value = 'more';
-            moreOption.innerText = 'More';
-            select.appendChild(moreOption);
-            label.appendChild(select);
-
-            const moreColors = document.createElement('select');
-            moreColors.className = className + '-more hidden mt-1 w-full min-w-0 border rounded-md px-1 py-1 text-xs';
-            moreColors.setAttribute('aria-label', labelText + ' অতিরিক্ত রং');
-            const placeholder = document.createElement('option');
-            placeholder.value = '';
-            placeholder.innerText = 'রং বাছুন';
-            moreColors.appendChild(placeholder);
-            additionalColors.forEach(([value, text]) => {
-                const option = document.createElement('option');
-                option.value = value;
-                option.innerText = text;
-                moreColors.appendChild(option);
-            });
-            const customOption = document.createElement('option');
-            customOption.value = 'custom';
-            customOption.innerText = 'নিজস্ব রং';
-            moreColors.appendChild(customOption);
-            label.appendChild(moreColors);
-
-            const customColor = document.createElement('input');
-            customColor.type = 'text';
-            customColor.placeholder = 'নিজস্ব রঙের নাম';
-            customColor.className = className + '-custom hidden mt-1 w-full min-w-0 border rounded-md px-1 py-1 text-xs';
-            label.appendChild(customColor);
-
-            select.addEventListener('change', () => {
-                const showMore = select.value === 'more';
-                moreColors.classList.toggle('hidden', !showMore);
-                if (!showMore) {
-                    moreColors.value = '';
-                    customColor.value = '';
-                    customColor.classList.add('hidden');
-                }
-            });
-            moreColors.addEventListener('change', () => {
-                customColor.classList.toggle('hidden', moreColors.value !== 'custom');
-            });
-            return label;
-        }
-
-        function selectedColor(row, className) {
-            const select = row.querySelector('.' + className);
-            if (select.value !== 'more') return select.value;
-            const more = row.querySelector('.' + className + '-more').value;
-            if (more !== 'custom') return more;
-            return row.querySelector('.' + className + '-custom').value.trim();
-        }
-
-        document.getElementById('splitter_info').addEventListener('change', (event) => {
-            document.getElementById('customSplitterWrap').classList.toggle('hidden', event.target.value !== 'Other');
-        });
-        document.getElementById('addPair').addEventListener('click', addPair);
-        document.getElementById('area').addEventListener('change', rememberArea);
-        document.getElementById('useLatestCustomerId').addEventListener('click', () => {
-            document.getElementById('customer_id').value = latestCustomerId;
-        });
 
         function displayLatestCustomerId(customerId) {
             latestCustomerId = customerId || '';
-            document.getElementById('latestCustomerWrap').classList.toggle('hidden', !latestCustomerId);
-            document.getElementById('latestCustomerId').innerText = latestCustomerId;
-            document.getElementById('latestCustomerError').classList.add('hidden');
+            el('latestCustomerWrap').hidden = !latestCustomerId;
+            el('latestCustomerId').textContent = latestCustomerId;
         }
 
         async function loadLatestCustomerId() {
             const response = await fetch('/api/latest-customer-id');
-            if (!response.ok) throw new Error('সর্বশেষ ID লোড করা যায়নি');
+            if (!response.ok) throw new Error('সর্বশেষ ID লোড করা যায়নি');
             const result = await response.json();
             displayLatestCustomerId(result.customer_id);
         }
 
+        function collectPairs() {
+            return Array.from(el('pairsList').children).map((row) => ({
+                color1: row.querySelector('[data-slot="color1"]').dataset.value || '',
+                color2: row.querySelector('[data-slot="color2"]').dataset.value || '',
+                location: row.querySelector('.pair-location').value.trim()
+            }));
+        }
+
+        function setFieldError(input, errorEl, isError) {
+            errorEl.classList.toggle('hidden', !isError);
+            input.classList.toggle('is-invalid', isError);
+            input.setAttribute('aria-invalid', String(isError));
+        }
+
         async function saveLog(event) {
             event.preventDefault();
-            const latitude = document.getElementById('latitude').value;
-            const longitude = document.getElementById('longitude').value;
-            if (!latitude || !longitude) {
-                alert('ম্যাপে লোকেশন বাছুন।');
-                return;
-            }
-            const area = document.getElementById('area').value;
+            const shouldReloadAfterSave = saveFromMapRequested;
+            saveFromMapRequested = false;
+            setFieldError(el('area'), el('areaError'), false);
+            setFieldError(el('customer_id'), el('customerError'), false);
+
+            const isCustomer = state.workType === 'Customer';
+            const area = el('area').value;
+            const customerId = el('customer_id').value.trim();
+
             if (!area) {
-                alert('আপনার এলাকা বাছাই করুন।');
+                setFieldError(el('area'), el('areaError'), true);
+                showToast('এলাকা বাছাই করুন', true);
                 return;
             }
-
-            const isCustomer = document.querySelector('input[name="work_type"]:checked').value === 'Customer';
-            if (isCustomer && !document.getElementById('customer_id').value.trim()) {
-                alert('কাস্টমার ID লিখুন।');
+            if (isCustomer && !customerId) {
+                setFieldError(el('customer_id'), el('customerError'), true);
+                el('customer_id').focus();
+                showToast('কাস্টমার ID লিখুন', true);
                 return;
             }
+            if (!isCustomer && !el('tj_location').value.trim()) {
+                setFieldError(el('tj_location'), el('tjLocationError'), true);
+                el('tj_location').focus();
+                showToast('বক্সের লোকেশন লিখুন', true);
+                return;
+            }
+            if (state.lat === null || state.lng === null) {
+                await useCurrentGps();
+                if (state.lat === null || state.lng === null) {
+                    showToast('লোকেশন পাওয়া যায়নি; ম্যাপে লোকেশন বাছুন', true);
+                    return;
+                }
+            }
 
-            const pairs = Array.from(document.querySelectorAll('#pairsList > div')).map((row) => {
-                return {
-                    color1: selectedColor(row, 'core1-color'),
-                    color2: selectedColor(row, 'core2-color'),
-                    location: row.querySelector('.pair-location').value.trim()
-                };
-            });
-            const splitter = document.getElementById('splitter_info').value;
+            const splitter = el('splitter_info').value;
             const payload = {
-                work_type: document.querySelector('input[name="work_type"]:checked').value,
-                area,
-                customer_id: isCustomer ? document.getElementById('customer_id').value.trim() : '',
-                location: isCustomer ? '' : document.getElementById('tj_location').value.trim(),
-                latitude,
-                longitude,
-                accuracy: document.getElementById('accuracy').value,
-                start_meter: document.getElementById('start_meter').value,
-                end_meter: document.getElementById('end_meter').value,
-                onu_id: document.getElementById('onu_id').value,
-                customer_name: document.getElementById('customer_name').value,
-                splitter_info: splitter === 'Other'
-                    ? document.getElementById('customSplitter').value.trim()
-                    : splitter,
-                tj_details: pairs,
-                notes: document.getElementById('notes').value
+                work_type: state.workType,
+                area: area,
+                customer_id: isCustomer ? customerId : '',
+                location: isCustomer ? '' : el('tj_location').value.trim(),
+                latitude: el('latitude').value,
+                longitude: el('longitude').value,
+                accuracy: el('location_accuracy').value,
+                start_meter: el('start_meter').value,
+                end_meter: el('end_meter').value,
+                onu_id: el('onu_id').value.trim(),
+                customer_name: el('customer_name').value.trim(),
+                splitter_info: splitter === 'Other' ? el('customSplitter').value.trim() : splitter,
+                tj_details: collectPairs(),
+                notes: el('notes').value.trim()
             };
 
-            const button = document.getElementById('submitBtn');
+            const button = el('submitBtn');
+            const label = el('submitLabel');
             button.disabled = true;
-            button.innerText = 'সেভ হচ্ছে...';
+            label.textContent = 'সেভ হচ্ছে...';
             try {
                 const response = await fetch('/api/save-log', {
                     method: 'POST',
@@ -459,37 +885,91 @@
                 });
                 const result = await response.json();
                 if (!response.ok || result.status !== 'success') {
-                    throw new Error(result.message || 'তথ্য সেভ হয়নি।');
+                    throw new Error(result.message || 'তথ্য সেভ হয়নি।');
                 }
 
-                alert(result.message);
+                showToast(result.message);
                 displayLatestCustomerId(result.customer_id);
-                const savedLocation = [latitude, longitude, document.getElementById('accuracy').value];
-                document.getElementById('techForm').reset();
-                document.getElementById('area').value = area;
-                document.getElementById('pairsList').replaceChildren();
-                pairCount = 0;
+                const savedLocation = { lat: state.lat, lng: state.lng, accuracy: state.accuracy };
+                el('techForm').reset();
+                el('area').value = area;
+                el('pairsList').replaceChildren();
                 addPair();
-                toggleFields();
+                setWorkType('Customer');
                 calculateFiber();
-                setSelectedLocation(Number(savedLocation[0]), Number(savedLocation[1]), Number(savedLocation[2]), 'map');
+                el('splitter_info').dispatchEvent(new Event('change'));
+                setLocation(savedLocation.lat, savedLocation.lng, savedLocation.accuracy, 'map');
+                el('techForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                if (shouldReloadAfterSave) {
+                    window.location.reload();
+                }
             } catch (error) {
-                alert('ত্রুটি: ' + error.message);
+                showToast(error.message, true);
             } finally {
                 button.disabled = false;
-                button.innerText = 'সেভ';
+                label.textContent = 'সেভ';
             }
         }
 
-        document.getElementById('techForm').addEventListener('submit', saveLog);
+        let saveFromMapRequested = false;
+
+        el('tj_location').addEventListener('input', () => {
+            setFieldError(el('tj_location'), el('tjLocationError'), false);
+        });
+        document.querySelectorAll('.work-tab').forEach((tab) => {
+            tab.addEventListener('click', () => setWorkType(tab.dataset.workType));
+        });
+        el('area').addEventListener('change', () => {
+            rememberArea();
+            setFieldError(el('area'), el('areaError'), false);
+        });
+        el('customer_id').addEventListener('input', () => {
+            setFieldError(el('customer_id'), el('customerError'), false);
+        });
+        el('useLatestCustomerId').addEventListener('click', () => {
+            el('customer_id').value = latestCustomerId;
+            setFieldError(el('customer_id'), el('customerError'), false);
+        });
+        el('splitter_info').addEventListener('change', (event) => {
+            el('customSplitterWrap').hidden = event.target.value !== 'Other';
+        });
+        el('gpsBtn').addEventListener('click', useCurrentGps);
+        el('pinHereBtn').addEventListener('click', dropPinAtCenter);
+        el('openMapBtn').addEventListener('click', openFullMap);
+        el('closeMapBtn').addEventListener('click', closeFullMap);
+        el('saveFromMapBtn').addEventListener('click', () => {
+            saveFromMapRequested = true;
+            saveFromFullMap();
+        });
+        el('centerPinBtn').addEventListener('click', centerFullMapPin);
+        el('addPair').addEventListener('click', () => addPair());
+        el('customColorBtn').addEventListener('click', () => {
+            el('customColorWrap').hidden = false;
+            el('customColorInput').focus();
+        });
+        el('customColorSave').addEventListener('click', applyCustomColor);
+        el('closeSheetBtn').addEventListener('click', closeColorSheet);
+        document.querySelector('[data-close-sheet]').addEventListener('click', closeColorSheet);
+        el('start_meter').addEventListener('input', calculateFiber);
+        el('end_meter').addEventListener('input', calculateFiber);
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            if (!el('colorSheet').hidden) {
+                closeColorSheet();
+            } else if (!el('mapOverlay').hidden) {
+                closeFullMap();
+            }
+        });
+        el('techForm').addEventListener('submit', saveLog);
+
         window.addEventListener('load', () => {
             restoreArea();
+            initMap();
             addPair();
-            fetchLocation();
-            loadLatestCustomerId().catch((error) => {
-                const latestError = document.getElementById('latestCustomerError');
-                latestError.innerText = error.message;
-                latestError.classList.remove('hidden');
+            setWorkType('Customer');
+            calculateFiber();
+            loadLatestCustomerId().catch(() => {
+                displayLatestCustomerId('');
             });
         });
     </script>
