@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile · Field Log</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
+    <style>
+        :root {
+            --ground: #F4F1E9;
+            --surface: #FFFFFF;
+            --ink: #16302A;
+            --line: rgba(22, 48, 42, 0.14);
+            --line-strong: rgba(22, 48, 42, 0.24);
+            --action: #1B7F52;
+            --action-deep: #146244;
+            --action-soft: #EAF3ED;
+            --ring: rgba(27, 127, 82, 0.16);
+            --shadow-card: 0 1px 2px rgba(22, 48, 42, 0.04), 0 14px 34px -26px rgba(22, 48, 42, 0.5);
+        }
+
+        body {
+            background: var(--ground);
+            color: var(--ink);
+            font-family: system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .field {
+            background: var(--surface);
+            color: var(--ink);
+            border: 1.5px solid var(--line-strong);
+            border-radius: 12px;
+        }
+
+        .field:focus,
+        .field:focus-visible {
+            outline: none;
+            border-color: var(--action);
+            box-shadow: 0 0 0 4px var(--ring);
+        }
+
+        .btn { transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .16s ease; }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary { background: var(--action); color: #FFFFFF; }
+        .btn-primary:hover { background: var(--action-deep); }
+        .btn-ghost { background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); }
+        .field.h-10, .btn.h-10 { height: 2.25rem; }
+        .field.h-9, .btn.h-9 { height: 2rem; }
+
+        .modal-backdrop[hidden] { display: none; }
+        .modal-backdrop { background: rgba(22, 48, 42, .48); }
+    </style>
+</head>
+<body class="min-h-screen">
+    <main class="mx-auto max-w-[760px] px-4 py-4 sm:px-6 sm:py-6">
+        <header class="card mb-3 flex items-center justify-between gap-3 px-4 py-3">
+            <div class="flex items-center gap-2.5">
+                <a href="{{ url_for('admin') }}" class="btn btn-ghost grid h-9 w-9 place-items-center rounded-xl" aria-label="Back to task board">
+                    <i class="ph-bold ph-arrow-left text-[15px]" aria-hidden="true"></i>
+                </a>
+                <div class="leading-tight">
+                    <h1 class="text-[17px] font-bold">My Profile</h1>
+                    <p class="text-[11.5px] text-[#16302A]/70">{{ account.display_name or account.username }}</p>
+                </div>
+            </div>
+            <form method="post" action="{{ url_for('admin_logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12px] font-semibold">
+                    <i class="ph-bold ph-sign-out text-[14px]" aria-hidden="true"></i>Log out
+                </button>
+            </form>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+            <p class="mb-2 rounded-xl border px-3 py-2 text-[13px] {{ 'border-[#1B7F52]/25 bg-[#EAF3ED] text-[#146244]' if category == 'success' else 'border-[#B3261E]/25 bg-[#FBEAE8] text-[#B3261E]' }}" role="status">{{ message }}</p>
+            {% endfor %}
+        {% endwith %}
+
+        <section class="card p-4">
+            <h2 class="text-[15px] font-bold">Personal information</h2>
+            <form method="post" action="{{ url_for('update_editor_profile') }}" class="mt-3 space-y-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label class="block text-[12px] font-semibold">Name
+                    <input name="name" value="{{ account.display_name }}" maxlength="80" autocomplete="name" required class="field mt-1 h-10 w-full px-3 text-[13px]">
+                </label>
+                <label class="block text-[12px] font-semibold">Username
+                    <input name="username" value="{{ account.username }}" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]{3,32}" autocomplete="username" required class="field mt-1 h-10 w-full px-3 text-[13px]">
+                </label>
+                <label class="block text-[12px] font-semibold">Mobile number
+                    <input name="mobile" type="tel" inputmode="tel" value="{{ account.mobile }}" autocomplete="tel" required class="field mt-1 h-10 w-full px-3 text-[13px]">
+                </label>
+                <button class="btn btn-primary h-10 w-full rounded-xl text-[13px] font-semibold">Save information</button>
+            </form>
+        </section>
+
+        <section class="mt-3 grid gap-2 sm:grid-cols-2">
+            <button type="button" class="btn btn-ghost h-10 rounded-xl text-[13px] font-semibold" data-open-modal="passwordModal">Change password</button>
+            <button type="button" class="btn btn-ghost h-10 rounded-xl text-[13px] font-semibold" data-open-schedule data-editor-name="My duty and availability" data-schedule='{{ own_schedule|tojson|forceescape }}' data-action="{{ url_for('update_own_availability') }}">Duty &amp; availability</button>
+        </section>
+
+        <section class="mt-4">
+            <div class="mb-2 px-1">
+                <h2 class="text-[15px] font-bold">Colleague schedules</h2>
+                <p class="text-[11.5px] text-[#16302A]/65">Editors can update a colleague's duty hours, weekly day off, planned leave, and time away.</p>
+            </div>
+            <div class="space-y-2">
+                {% for colleague in colleagues %}
+                {% if colleague.id != account.id %}
+                <article class="card flex flex-wrap items-center justify-between gap-2 p-3">
+                    <div class="min-w-0">
+                        <h3 class="text-[13px] font-bold">{{ colleague.name }}</h3>
+                        <a href="tel:{{ colleague.mobile }}" class="text-[11.5px] tabular-nums text-[#146244]">{{ colleague.mobile }}</a>
+                        {% if colleague.schedule.leave_start and colleague.schedule.leave_end %}
+                        <p class="mt-0.5 text-[10.5px] font-medium text-[#B3261E]">Planned leave: {{ colleague.schedule.leave_start }} – {{ colleague.schedule.leave_end }}</p>
+                        {% endif %}
+                    </div>
+                    <button type="button" class="btn btn-ghost h-9 rounded-lg px-3 text-[11.5px] font-semibold" data-open-schedule data-editor-name="{{ colleague.name }}" data-schedule='{{ colleague.schedule|tojson|forceescape }}' data-action="{{ url_for('update_colleague_schedule', editor_id=colleague.id) }}">Edit schedule</button>
+                </article>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+
+    <div id="passwordModal" class="modal-backdrop fixed inset-0 z-50 grid place-items-center p-4" hidden>
+        <section class="card w-full max-w-[420px] p-4" role="dialog" aria-modal="true" aria-labelledby="passwordModalTitle">
+            <div class="mb-3 flex items-center justify-between">
+                <h2 id="passwordModalTitle" class="text-[15px] font-bold">Change password</h2>
+                <button type="button" class="grid h-8 w-8 place-items-center rounded-lg hover:bg-[#16302A]/[0.06]" data-close-modal aria-label="Close">✕</button>
+            </div>
+            <form method="post" action="{{ url_for('update_editor_password') }}" class="space-y-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label class="block text-[12px] font-semibold">Current password
+                    <input name="current_password" type="password" autocomplete="current-password" required class="field mt-1 h-10 w-full px-3 text-[13px]">
+                </label>
+                <label class="block text-[12px] font-semibold">New password
+                    <input name="new_password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required class="field mt-1 h-10 w-full px-3 text-[13px]">
+                </label>
+                <label class="block text-[12px] font-semibold">Confirm new password
+                    <input name="confirm_password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required class="field mt-1 h-10 w-full px-3 text-[13px]">
+                </label>
+                <button class="btn btn-primary h-10 w-full rounded-xl text-[13px] font-semibold">Save password</button>
+            </form>
+        </section>
+    </div>
+
+    <div id="scheduleModal" class="modal-backdrop fixed inset-0 z-50 grid place-items-center p-3" hidden>
+        <section class="card max-h-[92vh] w-full max-w-[520px] overflow-y-auto p-4" role="dialog" aria-modal="true" aria-labelledby="scheduleModalTitle">
+            <div class="mb-3 flex items-center justify-between">
+                <h2 id="scheduleModalTitle" class="text-[15px] font-bold">Duty &amp; availability</h2>
+                <button type="button" class="grid h-8 w-8 place-items-center rounded-lg hover:bg-[#16302A]/[0.06]" data-close-modal aria-label="Close">✕</button>
+            </div>
+            <form id="scheduleForm" method="post" class="space-y-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label class="block text-[11.5px] font-semibold">Weekly day off
+                    <select id="scheduleWeeklyOff" name="weekly_off_day" class="field mt-1 h-9 w-full px-2 text-[12px]">
+                        <option value="">No weekly day off</option>
+                        <option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option>
+                        <option value="3">Thursday</option><option value="4">Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
+                    </select>
+                </label>
+                <fieldset>
+                    <legend class="mb-1 text-[11.5px] font-semibold">Weekly duty hours <span class="font-normal text-[#16302A]/60">(leave blank for always available)</span></legend>
+                    <div class="space-y-1">
+                        {% for day in [{'name':'Monday','index':0},{'name':'Tuesday','index':1},{'name':'Wednesday','index':2},{'name':'Thursday','index':3},{'name':'Friday','index':4},{'name':'Saturday','index':5},{'name':'Sunday','index':6}] %}
+                        <div class="grid grid-cols-[78px_1fr_1fr] items-center gap-2 rounded-lg bg-[#F4F1E9]/60 px-2 py-1">
+                            <span class="text-[11px] font-medium">{{ day.name }}</span>
+                            <input id="scheduleShift{{ day.index }}Start" name="shift_{{ day.index }}_start" type="time" class="field h-8 min-w-0 px-2 text-[11px] tabular-nums" aria-label="{{ day.name }} duty starts">
+                            <input id="scheduleShift{{ day.index }}End" name="shift_{{ day.index }}_end" type="time" class="field h-8 min-w-0 px-2 text-[11px] tabular-nums" aria-label="{{ day.name }} duty ends">
+                        </div>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-[11.5px] font-semibold">Leave starts
+                        <input id="scheduleLeaveStart" name="leave_start" type="date" class="field mt-1 h-9 w-full px-2 text-[11px]">
+                    </label>
+                    <label class="text-[11.5px] font-semibold">Leave ends
+                        <input id="scheduleLeaveEnd" name="leave_end" type="date" class="field mt-1 h-9 w-full px-2 text-[11px]">
+                    </label>
+                </div>
+                <p class="text-[10.5px] text-[#16302A]/60">Leave includes both the start and end dates.</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-[11.5px] font-semibold">Away from
+                        <input id="scheduleAwayStart" name="away_start" type="datetime-local" class="field mt-1 h-9 w-full px-1.5 text-[10.5px]">
+                    </label>
+                    <label class="text-[11.5px] font-semibold">Return at
+                        <input id="scheduleAwayEnd" name="away_end" type="datetime-local" class="field mt-1 h-9 w-full px-1.5 text-[10.5px]">
+                    </label>
+                </div>
+                <button class="btn btn-primary h-10 w-full rounded-xl text-[12px] font-semibold">Save duty &amp; availability</button>
+            </form>
+        </section>
+    </div>
+
+    <script>
+        const scheduleFields = {
+            weekly_off_day: document.getElementById('scheduleWeeklyOff'),
+            leave_start: document.getElementById('scheduleLeaveStart'),
+            leave_end: document.getElementById('scheduleLeaveEnd'),
+            away_start: document.getElementById('scheduleAwayStart'),
+            away_end: document.getElementById('scheduleAwayEnd')
+        };
+        document.querySelectorAll('[data-open-modal]').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.getElementById(button.dataset.openModal).hidden = false;
+            });
+        });
+        document.querySelectorAll('[data-open-schedule]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const form = document.getElementById('scheduleForm');
+                const schedule = JSON.parse(button.dataset.schedule || '{}');
+                form.action = button.dataset.action;
+                document.getElementById('scheduleModalTitle').textContent = button.dataset.editorName;
+                scheduleFields.weekly_off_day.value = schedule.weekly_off_day || '';
+                scheduleFields.leave_start.value = schedule.leave_start || '';
+                scheduleFields.leave_end.value = schedule.leave_end || '';
+                scheduleFields.away_start.value = schedule.away_start || '';
+                scheduleFields.away_end.value = schedule.away_end || '';
+                for (let day = 0; day < 7; day += 1) {
+                    const shift = schedule[String(day)] || {};
+                    document.getElementById(`scheduleShift${day}Start`).value = shift.start || '';
+                    document.getElementById(`scheduleShift${day}End`).value = shift.end || '';
+                }
+                document.getElementById('scheduleModal').hidden = false;
+            });
+        });
+        document.querySelectorAll('[data-close-modal]').forEach((button) => {
+            button.addEventListener('click', () => button.closest('.modal-backdrop').hidden = true);
+        });
+        document.querySelectorAll('.modal-backdrop').forEach((modal) => {
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) modal.hidden = true;
+            });
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                document.querySelectorAll('.modal-backdrop:not([hidden])').forEach((modal) => modal.hidden = true);
+            }
+        });
+    </script>
+</body>
+</html>

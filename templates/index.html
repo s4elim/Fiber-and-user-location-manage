@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ফিল্ড লগ</title>
+    <title>Field Log</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
@@ -34,7 +34,7 @@
         body {
             background: var(--ground);
             color: var(--ink);
-            font-family: 'Hind Siliguri', system-ui, sans-serif;
+            font-family: system-ui, sans-serif;
             -webkit-font-smoothing: antialiased;
         }
 
@@ -70,6 +70,12 @@
             border-color: var(--danger);
             box-shadow: 0 0 0 4px rgba(179, 38, 30, 0.10);
         }
+
+        .field.h-14, .btn.h-14 { height: 3rem; }
+        .field.h-12, .btn.h-12 { height: 2.75rem; }
+        .field.h-11, .btn.h-11 { height: 2.5rem; }
+        .field.h-10, .btn.h-10 { height: 2.25rem; }
+        .field.h-9, .btn.h-9 { height: 2rem; }
 
         .btn {
             transition: transform .16s cubic-bezier(.2, .8, .2, 1), background-color .18s ease, border-color .18s ease, box-shadow .18s ease, color .18s ease;
@@ -179,6 +185,24 @@
             transition: transform .3s cubic-bezier(.22, .95, .3, 1);
         }
 
+        #availabilitySheet {
+            opacity: 0;
+            transition: opacity .22s ease;
+        }
+
+        #availabilitySheet.is-open {
+            opacity: 1;
+        }
+
+        #availabilitySheet .sheet-panel {
+            transform: translateY(101%);
+            transition: transform .3s cubic-bezier(.22, .95, .3, 1);
+        }
+
+        #availabilitySheet.is-open .sheet-panel {
+            transform: translateY(0);
+        }
+
         #colorSheet.is-open .sheet-panel {
             transform: translateY(0);
         }
@@ -211,6 +235,8 @@
             #colorSheet,
             #mapOverlay,
             #colorSheet .sheet-panel,
+            #availabilitySheet,
+            #availabilitySheet .sheet-panel,
             .btn,
             .field {
                 transition: none !important;
@@ -220,17 +246,45 @@
 </head>
 <body class="min-h-screen">
     <div class="mx-auto flex min-h-screen w-full max-w-[430px] flex-col">
-        <header class="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between bg-[#285447] px-4 text-white">
+        <header class="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-[#0D4935] bg-gradient-to-r from-[#164F3B] via-[#14543D] to-[#0F4938] px-4 text-white shadow-sm">
             <div class="flex items-center gap-2">
                 <i class="ph-bold ph-plugs-connected text-[21px]" aria-hidden="true"></i>
-                <span class="text-[18px] font-semibold leading-none">ফিল্ড লগ</span>
+                <span class="text-[18px] font-semibold leading-none">Field Log</span>
             </div>
             {% if is_admin_logged_in %}
-            <a href="/admin" class="text-[13px] font-medium leading-none text-white/80 underline decoration-white/35 underline-offset-4">Admin panel</a>
+                {% if current_account.role == 'editor' %}
+            <a href="{{ url_for('admin') }}" class="text-[13px] font-medium leading-none text-white underline decoration-white/40 underline-offset-4">Admin panel</a>
+                {% else %}
+            <a href="/admin" class="text-[13px] font-medium leading-none text-white underline decoration-white/40 underline-offset-4">Admin panel</a>
+                {% endif %}
             {% else %}
-            <a href="/admin/login" class="text-[13px] font-medium leading-none text-white/80 underline decoration-white/35 underline-offset-4">Admin login</a>
+            <a href="/admin/login" class="text-[13px] font-medium leading-none text-white underline decoration-white/40 underline-offset-4">Admin login</a>
             {% endif %}
         </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+            <p class="mx-4 mt-2 rounded-xl border px-3 py-2 text-[12px] {{ 'border-[#1B7F52]/25 bg-[#EAF3ED] text-[#146244]' if category == 'success' else 'border-[#B3261E]/25 bg-[#FBEAE8] text-[#B3261E]' }}" role="status">{{ message }}</p>
+            {% endfor %}
+        {% endwith %}
+
+        <section class="px-4 pt-3" aria-label="Engineer availability">
+            <button type="button" id="openAvailabilityBtn" class="card flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left">
+                <span class="flex min-w-0 items-center gap-2">
+                    <span class="relative grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#EAF3ED] text-[#146244]">
+                        <i class="ph-bold ph-users-three text-[16px]" aria-hidden="true"></i>
+                        <span class="absolute right-0 top-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#17855A]"></span>
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-[14px] font-semibold leading-tight">Active</span>
+                        <span id="availabilitySummary" class="mt-0.5 block truncate text-[13px] font-medium leading-tight text-[#16302A]/75" aria-live="polite"></span>
+                    </span>
+                </span>
+                <span class="flex shrink-0 items-center gap-1.5">
+                    <i class="ph-bold ph-caret-right text-[13px] text-[#16302A]/50" aria-hidden="true"></i>
+                </span>
+            </button>
+        </section>
 
         <form id="techForm" class="flex flex-1 flex-col gap-3 px-4 pb-3 pt-4" novalidate>
             <input type="hidden" id="work_type" value="Customer">
@@ -239,119 +293,119 @@
             <input type="hidden" id="location_accuracy">
 
             <div>
-                <label for="area" class="mb-2 block text-[17px] font-semibold leading-none">এলাকা</label>
+                <label for="area" class="mb-1.5 block text-[15px] font-semibold leading-none">Area</label>
                 <div class="relative">
                     <select id="area" class="field h-12 appearance-none pl-3.5 pr-11 text-[16px] font-semibold leading-none">
-                        <option value="">এলাকা বাছাই করুন</option>
+                        <option value="">Choose an area</option>
                         {% for area in areas %}
                         <option value="{{ area }}">{{ area }}</option>
                         {% endfor %}
                     </select>
                     <i class="ph-bold ph-caret-down pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[18px] text-[#16302A]/60" aria-hidden="true"></i>
                 </div>
-                <p id="areaError" class="mt-1.5 hidden text-[12.5px] font-medium text-[#B3261E]" role="alert">এলাকা বাছাই করুন</p>
+                <p id="areaError" class="mt-1 hidden text-[12px] font-medium text-[#B3261E]" role="alert">Choose an area</p>
             </div>
 
-            <div class="flex h-14 items-center gap-1 rounded-2xl bg-[#16302A]/[0.06] p-1" role="group" aria-label="কাজের ধরন">
-                <button type="button" data-work-type="Customer" class="work-tab btn h-full flex-1 rounded-xl text-[16px] leading-none">কাস্টমার</button>
-                <button type="button" data-work-type="TJ Box" class="work-tab btn h-full flex-1 rounded-xl text-[16px] leading-none">TJ বক্স</button>
+            <div class="flex h-12 items-center gap-1 rounded-2xl bg-[#16302A]/[0.06] p-1" role="group" aria-label="Work type">
+                <button type="button" data-work-type="Customer" class="work-tab btn h-full flex-1 rounded-xl text-[14px] leading-none">Customer</button>
+                <button type="button" data-work-type="TJ Box" class="work-tab btn h-full flex-1 rounded-xl text-[14px] leading-none">TJ Box</button>
             </div>
 
             <div id="customerBlock">
                 <div class="mb-2 flex items-baseline justify-between gap-2">
-                    <label for="customer_id" class="text-[17px] font-semibold leading-none">কাস্টমার ID</label>
+                    <label for="customer_id" class="text-[15px] font-semibold leading-none">Customer ID</label>
                     <span id="latestCustomerWrap" hidden class="inline-flex items-center gap-1 rounded-full border border-[#1B7F52]/20 bg-[#EAF3ED] px-2.5 py-1 text-[11.5px] font-medium leading-none text-[#146244]">
                         Last Use:
                         <button type="button" id="useLatestCustomerId" class="ml-0.5 font-semibold underline decoration-[#146244]/40 underline-offset-2"><span id="latestCustomerId" class="font-bold tabular-nums text-[#16302A]"></span></button>
                     </span>
                 </div>
-                <input type="text" id="customer_id" inputmode="numeric" autocomplete="off" required placeholder="কাস্টমার ID লিখুন" class="field h-14 px-3.5 text-[17px] font-medium leading-none placeholder:font-normal placeholder:text-[#16302A]/38">
-                <p id="customerError" class="mt-1.5 hidden text-[12.5px] font-medium text-[#B3261E]" role="alert">কাস্টমার ID লিখুন</p>
+                <input type="text" id="customer_id" inputmode="text" autocomplete="off" required placeholder="Enter customer ID" class="field h-14 px-3.5 text-[15px] font-medium leading-none placeholder:font-normal placeholder:text-[#16302A]/38">
+                <p id="customerError" class="mt-1 hidden text-[12px] font-medium text-[#B3261E]" role="alert">Enter customer ID</p>
             </div>
 
             <div id="tjBlock" class="hidden space-y-3">
                 <div class="grid grid-cols-[minmax(0,1fr)_104px] gap-2">
                     <label class="block min-w-0" for="tj_location">
-                        <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">বক্সের নাম</span>
-                        <input type="text" id="tj_location" autocomplete="off" placeholder="বক্সের নাম" class="field h-12 px-3 text-[15px] font-medium leading-none placeholder:font-normal placeholder:text-[#16302A]/38">
+                        <span class="mb-1.5 block text-[12px] font-semibold leading-none text-[#16302A]/70">Box name</span>
+                        <input type="text" id="tj_location" autocomplete="off" placeholder="Box name" class="field h-12 px-3 text-[14px] font-medium leading-none placeholder:font-normal placeholder:text-[#16302A]/38">
                     </label>
                     <label class="block" for="splitter_info">
-                        <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">স্প্লিটার</span>
+                        <span class="mb-1.5 block text-[12px] font-semibold leading-none text-[#16302A]/70">Splitter</span>
                         <span class="relative block">
                             <select id="splitter_info" class="field h-12 appearance-none pl-2.5 pr-7 text-[15px] font-semibold tabular-nums leading-none">
-                                <option value="">বাছাই</option>
+                                <option value="">Select</option>
                                 <option>1:4</option>
                                 <option>1:8</option>
                                 <option>1:16</option>
                                 <option>1:32</option>
-                                <option value="Other">অন্যান্য</option>
+                                <option value="Other">Other</option>
                             </select>
                             <i class="ph-bold ph-caret-down pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[14px] text-[#16302A]/55" aria-hidden="true"></i>
                         </span>
                     </label>
                 </div>
-                <p id="tjLocationError" class="hidden text-[12.5px] font-medium text-[#B3261E]" role="alert">বক্সের লোকেশন লিখুন</p>
+                <p id="tjLocationError" class="hidden text-[12px] font-medium text-[#B3261E]" role="alert">Enter the box location</p>
                 <label id="customSplitterWrap" class="block" hidden for="customSplitter">
-                    <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">স্প্লিটারের নাম / অনুপাত</span>
+                    <span class="mb-1.5 block text-[12px] font-semibold leading-none text-[#16302A]/70">Custom splitter name / ratio</span>
                     <input type="text" id="customSplitter" autocomplete="off" class="field h-12 px-3 text-[15px] font-medium leading-none">
                 </label>
             </div>
 
             <section id="pairsSection" class="hidden">
                 <div class="mb-1.5 flex items-center justify-between">
-                    <h2 class="text-[14px] font-semibold leading-none">জোড়া / কোর</h2>
+                    <h2 class="text-[14px] font-semibold leading-none">Pairs / cores</h2>
                     <span class="text-[12px] font-medium leading-none text-[#16302A]/55">
-                        <span id="pairCount" class="tabular-nums">০</span> জোড়া
+                        <span id="pairCount" class="tabular-nums">0</span> pairs
                     </span>
                 </div>
                 <div id="pairsList" class="space-y-2"></div>
                 <button type="button" id="addPair" class="btn mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#1B7F52]/45 text-[13px] font-semibold leading-none text-[#146244] hover:bg-[#EAF3ED]">
-                    <i class="ph-bold ph-plus text-[13px]" aria-hidden="true"></i>জোড়া যোগ করুন
+                    <i class="ph-bold ph-plus text-[13px]" aria-hidden="true"></i>Add pair
                 </button>
             </section>
 
             <details class="card overflow-hidden">
                 <summary class="flex cursor-pointer select-none items-center justify-between px-4 py-4 text-[16px] font-semibold leading-none">
                     <span class="flex items-center gap-2">
-                        <i class="ph-bold ph-sliders-horizontal text-[18px]" aria-hidden="true"></i>আরও তথ্য
+                        <i class="ph-bold ph-sliders-horizontal text-[18px]" aria-hidden="true"></i>More details
                     </span>
                     <i class="ph-bold ph-plus text-[18px] text-[#16302A]/55" aria-hidden="true"></i>
                 </summary>
                 <div class="space-y-3 border-t border-[#16302A]/10 p-3">
                     <div id="customerExtra" class="grid grid-cols-1 gap-3">
                         <label class="block" for="onu_id">
-                            <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">ONU ID / সিরিয়াল / MAC</span>
+                            <span class="mb-1.5 block text-[12px] font-semibold leading-none text-[#16302A]/70">ONU ID / serial / MAC</span>
                             <input type="text" id="onu_id" autocomplete="off" class="field h-12 px-3 text-[15px] font-medium leading-none">
                         </label>
                         <label class="block" for="customer_name">
-                            <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">কাস্টমার নাম / রেফারেন্স</span>
+                            <span class="mb-1.5 block text-[12px] font-semibold leading-none text-[#16302A]/70">Customer name / reference</span>
                             <input type="text" id="customer_name" autocomplete="off" class="field h-12 px-3 text-[15px] font-medium leading-none">
                         </label>
                     </div>
                     <div>
-                        <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">ফাইবার রিডিং (মিটার)</span>
+                        <span class="mb-1.5 block text-[12px] font-semibold leading-none text-[#16302A]/70">Fiber reading (meters)</span>
                         <div class="grid grid-cols-2 gap-2">
                             <label class="block" for="start_meter">
-                                <span class="mb-1 block text-[12px] leading-none text-[#16302A]/55">শুরু</span>
+                                <span class="mb-1 block text-[11px] leading-none text-[#16302A]/55">Start</span>
                                 <input type="number" inputmode="decimal" id="start_meter" class="field h-12 px-3 text-[15px] tabular-nums">
                             </label>
                             <label class="block" for="end_meter">
-                                <span class="mb-1 block text-[12px] leading-none text-[#16302A]/55">শেষ</span>
+                                <span class="mb-1 block text-[11px] leading-none text-[#16302A]/55">End</span>
                                 <input type="number" inputmode="decimal" id="end_meter" class="field h-12 px-3 text-[15px] tabular-nums">
                             </label>
                         </div>
-                        <p class="mt-1.5 text-[12.5px] leading-none text-[#16302A]/55">মোট <span id="totalFiberDisplay" class="font-semibold tabular-nums text-[#16302A]">০</span> মিটার</p>
+                        <p class="mt-1.5 text-[12px] leading-none text-[#16302A]/55">Total <span id="totalFiberDisplay" class="font-semibold tabular-nums text-[#16302A]">0</span> m</p>
                     </div>
                     <label class="block" for="notes">
-                        <span class="mb-1.5 block text-[13px] font-semibold leading-none text-[#16302A]/70">নোট</span>
+                        <span class="mb-1.5 block text-[12px] font-semibold leading-none text-[#16302A]/70">Notes</span>
                         <textarea id="notes" rows="2" class="field px-3 py-2 text-[15px] leading-snug"></textarea>
                     </label>
                 </div>
             </details>
 
             <div class="-mx-4 mt-1 border-t border-[#16302A]/10 bg-[#F4F1E9]/95 px-4 pb-3 pt-2">
-                <button type="submit" id="submitBtn" class="btn btn-primary flex h-14 w-full items-center justify-center gap-2 rounded-full text-[17px] font-semibold leading-none disabled:opacity-70">
-                    <i class="ph-bold ph-check text-[18px]" aria-hidden="true"></i><span id="submitLabel">সেভ</span>
+                <button type="submit" id="submitBtn" class="btn btn-primary flex h-14 w-full items-center justify-center gap-2 rounded-full text-[15px] font-semibold leading-none disabled:opacity-70">
+                    <i class="ph-bold ph-check text-[18px]" aria-hidden="true"></i><span id="submitLabel">Save</span>
                 </button>
             </div>
 
@@ -359,20 +413,20 @@
                 <div class="mb-2 flex items-center justify-between">
                     <span class="flex items-center gap-1.5 text-[16px] font-semibold leading-none">
                         <i class="ph-bold ph-map-pin text-[17px]" aria-hidden="true"></i>
-                        <span id="locationTitle">লোকেশন</span>
+                        <span id="locationTitle">Location</span>
                     </span>
                 </div>
                 <div class="map-shell">
-                    <div id="locationMap" aria-label="ম্যাপে কাজের লোকেশন বাছাই করুন"></div>
+                    <div id="locationMap" aria-label="Choose the work location on the map"></div>
                     <button type="button" id="pinHereBtn" class="map-chip absolute bottom-2 left-2 flex h-9 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold leading-none">
-                        <i class="ph-bold ph-map-pin text-[14px]" aria-hidden="true"></i>পিন বসান
+                        <i class="ph-bold ph-map-pin text-[14px]" aria-hidden="true"></i>Drop pin
                     </button>
-                    <button type="button" id="openMapBtn" class="map-chip absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full" aria-label="পুরো ম্যাপে খুলুন" title="পুরো ম্যাপে খুলুন">
+                    <button type="button" id="openMapBtn" class="map-chip absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full" aria-label="Open full map" title="Open full map">
                         <i class="ph-bold ph-corners-out text-[15px]" aria-hidden="true"></i>
                     </button>
                 </div>
                 <button type="button" id="gpsBtn" class="btn btn-soft mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-full text-[14px] font-semibold leading-none">
-                    <i class="ph-bold ph-crosshair text-[16px]" aria-hidden="true"></i>বর্তমান GPS
+                    <i class="ph-bold ph-crosshair text-[16px]" aria-hidden="true"></i>Use current GPS
                 </button>
                 <p id="locationStatus" class="mt-2 text-[12px] font-medium leading-tight text-[#16302A]/55" role="status" aria-live="polite"></p>
             </section>
@@ -383,19 +437,19 @@
         <div class="mx-auto flex h-full w-full max-w-[430px] flex-col">
             <header class="flex h-14 shrink-0 items-center justify-between bg-[#285447] px-4 text-white">
                 <button type="button" id="closeMapBtn" class="btn flex h-10 items-center gap-1.5 rounded-full border border-white/30 bg-[#F4F1E9] px-3 text-[14px] font-semibold text-[#16302A] hover:bg-white">
-                    <i class="ph-bold ph-arrow-left text-[18px]" aria-hidden="true"></i>ফিরে যান
+                    <i class="ph-bold ph-arrow-left text-[18px]" aria-hidden="true"></i>Back
                 </button>
-                <span class="text-[16px] font-semibold">লোকেশন</span>
+                <span class="text-[16px] font-semibold">Location</span>
             </header>
             <div class="relative min-h-0 flex-1">
                 <div id="fullMap" class="h-full w-full"></div>
                 <button type="button" id="centerPinBtn" class="map-chip absolute bottom-4 left-1/2 flex h-11 -translate-x-1/2 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold leading-none">
-                    <i class="ph-bold ph-map-pin text-[15px]" aria-hidden="true"></i>এখানে পিন বসান
+                    <i class="ph-bold ph-map-pin text-[15px]" aria-hidden="true"></i>Drop pin here
                 </button>
             </div>
             <div class="shrink-0 border-t border-[#16302A]/12 bg-white px-4 pb-4 pt-3">
                 <button type="button" id="saveFromMapBtn" class="btn btn-primary flex h-14 w-full items-center justify-center gap-2 rounded-full text-[16px] font-semibold leading-none">
-                    <i class="ph-bold ph-check text-[18px]" aria-hidden="true"></i>সেভ
+                    <i class="ph-bold ph-check text-[18px]" aria-hidden="true"></i>Save
                 </button>
             </div>
         </div>
@@ -411,17 +465,34 @@
                     <span class="px-1">·</span>
                     <span id="sheetSlot"></span>
                 </p>
-                <button type="button" id="customColorBtn" class="text-[12px] font-semibold leading-none text-[#146244] underline decoration-[#146244]/40 underline-offset-2">নিজস্ব রং</button>
+                <button type="button" id="customColorBtn" class="text-[12px] font-semibold leading-none text-[#146244] underline decoration-[#146244]/40 underline-offset-2">Custom color</button>
             </div>
             <div id="colorGrid" class="grid grid-cols-3 gap-1.5 px-3"></div>
             <div id="customColorWrap" class="mt-2 px-3" hidden>
-                <input type="text" id="customColorInput" autocomplete="off" placeholder="রঙের নাম" class="field h-12 px-3 text-[15px] font-medium">
-                <button type="button" id="customColorSave" class="btn btn-primary mt-2 h-12 w-full rounded-xl text-[15px] font-semibold text-white">রং বসান</button>
+                <input type="text" id="customColorInput" autocomplete="off" placeholder="Color name" class="field h-12 px-3 text-[15px] font-medium">
+                <button type="button" id="customColorSave" class="btn btn-primary mt-2 h-12 w-full rounded-xl text-[15px] font-semibold text-white">Apply color</button>
             </div>
             <div class="p-3">
-                <button type="button" id="closeSheetBtn" class="btn h-11 w-full rounded-xl border border-[#16302A]/15 text-[14px] font-semibold text-[#16302A]/65 hover:bg-[#16302A]/[0.04]">বন্ধ করুন</button>
+                <button type="button" id="closeSheetBtn" class="btn h-11 w-full rounded-xl border border-[#16302A]/15 text-[14px] font-semibold text-[#16302A]/65 hover:bg-[#16302A]/[0.04]">Close</button>
             </div>
         </div>
+    </div>
+
+    <div id="availabilitySheet" class="fixed inset-0 z-[70]" hidden>
+        <div class="absolute inset-0 bg-[#16302A]/40" data-close-availability></div>
+        <section class="sheet-panel absolute inset-x-0 bottom-0 mx-auto max-h-[82vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white shadow-[0_-16px_44px_-20px_rgba(22,48,42,0.6)]" role="dialog" aria-modal="true" aria-labelledby="availabilityTitle">
+            <div class="mx-auto mb-2 mt-2 h-1 w-9 rounded-full bg-[#16302A]/15" aria-hidden="true"></div>
+            <div class="mb-3 flex items-center justify-between px-4">
+                <div>
+                    <h2 id="availabilityTitle" class="text-[15px] font-bold">Active</h2>
+                    <p class="text-[11.5px] text-[#16302A]/60">Tap a name or number to call</p>
+                </div>
+                <button type="button" id="closeAvailabilityBtn" class="grid h-9 w-9 place-items-center rounded-full text-[#16302A]/60 hover:bg-[#16302A]/[0.06]" aria-label="Close">
+                    <i class="ph-bold ph-x text-[16px]" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div id="availabilityList" class="space-y-1.5 px-3 pb-3"></div>
+        </section>
     </div>
 
     <div id="toast" class="pointer-events-none fixed inset-x-0 top-14 z-[60] px-4" hidden>
@@ -433,24 +504,23 @@
         const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
         const DEFAULT_VIEW = [23.8103, 90.4125];
         const AREA_STORAGE_KEY = 'technician-area-v1';
+        const INITIAL_ENGINEERS = {{ engineers|tojson }};
         const COLORS = [
-            { value: 'Blue', label: 'নীল', hex: '#2563EB' },
-            { value: 'Orange', label: 'কমলা', hex: '#F97316' },
-            { value: 'Green', label: 'সবুজ', hex: '#16A34A' },
-            { value: 'Brown', label: 'বাদামি', hex: '#8A4B27' },
-            { value: 'Slate', label: 'স্লেট', hex: '#64748B' },
-            { value: 'White', label: 'সাদা', hex: '#FFFFFF' },
-            { value: 'Red', label: 'লাল', hex: '#DC2626' },
-            { value: 'Black', label: 'কালো', hex: '#1F2937' },
-            { value: 'Yellow', label: 'হলুদ', hex: '#F2B705' },
-            { value: 'Violet', label: 'বেগুনি', hex: '#7C3AED' },
-            { value: 'Rose', label: 'গোলাপি', hex: '#EC4899' },
-            { value: 'Aqua', label: 'আকাশি', hex: '#06B6D4' }
+            { value: 'Blue', label: 'Blue', hex: '#2563EB' },
+            { value: 'Orange', label: 'Orange', hex: '#F97316' },
+            { value: 'Green', label: 'Green', hex: '#16A34A' },
+            { value: 'Brown', label: 'Brown', hex: '#8A4B27' },
+            { value: 'Slate', label: 'Slate', hex: '#64748B' },
+            { value: 'White', label: 'White', hex: '#FFFFFF' },
+            { value: 'Red', label: 'Red', hex: '#DC2626' },
+            { value: 'Black', label: 'Black', hex: '#1F2937' },
+            { value: 'Yellow', label: 'Yellow', hex: '#F2B705' },
+            { value: 'Violet', label: 'Violet', hex: '#7C3AED' },
+            { value: 'Rose', label: 'Rose', hex: '#EC4899' },
+            { value: 'Aqua', label: 'Aqua', hex: '#06B6D4' }
         ];
-        const SLOT_LABEL = { color1: 'ইনপুট ফাইবার', color2: 'আউটপুট ফাইবার' };
+        const SLOT_LABEL = { color1: 'Input fiber', color2: 'Output fiber' };
         const CUSTOM_HEX = '#D8D2C2';
-        const BN_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-
         const state = { lat: null, lng: null, accuracy: 0, source: null, workType: 'Customer' };
         let latestCustomerId = '';
         let map = null;
@@ -462,8 +532,99 @@
 
         const el = (id) => document.getElementById(id);
 
-        function toBangla(value) {
-            return String(value).replace(/\d/g, (digit) => BN_DIGITS[Number(digit)]);
+        function renderAvailability(engineers) {
+            const active = engineers.filter((engineer) => engineer.status === 'active');
+            el('availabilitySummary').textContent = active
+                .map((engineer) => engineer.name.trim().split(/\s+/)[0])
+                .join(' · ') || '—';
+
+            const list = el('availabilityList');
+            list.replaceChildren();
+            if (!engineers.length) {
+                const empty = document.createElement('p');
+                empty.className = 'rounded-xl bg-[#F4F1E9] px-3 py-4 text-center text-[12.5px] text-[#16302A]/65';
+                empty.textContent = '—';
+                list.appendChild(empty);
+                return;
+            }
+            [
+                { key: 'active', label: 'Available' },
+                { key: 'outside', label: 'Away / off duty' },
+                { key: 'leave', label: 'On leave' }
+            ].forEach((group) => {
+                const row = document.createElement('section');
+                row.className = 'rounded-xl border border-[#16302A]/[0.08] px-2.5 py-2';
+                const title = document.createElement('h3');
+                title.className = 'mb-1.5 text-[11px] font-semibold text-[#16302A]/65';
+                title.textContent = group.label;
+                const names = document.createElement('div');
+                names.className = 'flex flex-wrap gap-1.5';
+                const members = engineers.filter((engineer) => engineer.status === group.key);
+                if (!members.length) {
+                    const empty = document.createElement('span');
+                    empty.className = 'text-[11px] text-[#16302A]/40';
+                    empty.textContent = '—';
+                    names.appendChild(empty);
+                }
+                members.forEach((engineer) => {
+                    const contact = document.createElement('div');
+                    contact.className = 'inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-1 rounded-xl bg-[#EAF3ED] px-2.5 py-1.5 text-[#146244]';
+                    const name = document.createElement('span');
+                    name.className = (group.key === 'active' ? 'max-w-[110px] text-[13px]' : 'max-w-[80px] text-[11px]') + ' truncate font-semibold';
+                    name.textContent = engineer.name.trim().split(/\s+/)[0];
+                    const number = document.createElement('span');
+                    number.className = (group.key === 'active' ? 'text-[11px]' : 'text-[10px]') + ' font-normal tabular-nums';
+                    number.textContent = engineer.mobile;
+                    const actions = document.createElement('span');
+                    actions.className = 'flex items-center gap-1';
+                    const callLink = document.createElement('a');
+                    callLink.className = 'inline-flex h-7 items-center gap-1 rounded-lg bg-white px-2 text-[10px] font-semibold text-[#146244]';
+                    callLink.href = 'tel:' + engineer.mobile;
+                    callLink.setAttribute('aria-label', 'Call ' + engineer.name + ': ' + engineer.mobile);
+                    callLink.innerHTML = '<i class="ph-bold ph-phone" aria-hidden="true"></i>Call';
+                    const whatsappLink = document.createElement('a');
+                    whatsappLink.className = 'inline-flex h-7 items-center gap-1 rounded-lg bg-white px-2 text-[10px] font-semibold text-[#146244]';
+                    const whatsappDigits = engineer.mobile.replace(/\D/g, '');
+                    const whatsappNumber = whatsappDigits.startsWith('0')
+                        ? '88' + whatsappDigits
+                        : whatsappDigits;
+                    whatsappLink.href = 'https://wa.me/' + whatsappNumber;
+                    whatsappLink.target = '_blank';
+                    whatsappLink.rel = 'noopener noreferrer';
+                    whatsappLink.setAttribute('aria-label', 'Message ' + engineer.name + ' on WhatsApp');
+                    whatsappLink.innerHTML = '<i class="ph-bold ph-whatsapp-logo" aria-hidden="true"></i>WhatsApp';
+                    actions.append(callLink, whatsappLink);
+                    contact.append(name, number, actions);
+                    names.appendChild(contact);
+                });
+                row.append(title, names);
+                list.appendChild(row);
+            });
+        }
+
+        function openAvailabilitySheet() {
+            const sheet = el('availabilitySheet');
+            sheet.hidden = false;
+            document.body.style.overflow = 'hidden';
+            requestAnimationFrame(() => sheet.classList.add('is-open'));
+        }
+
+        function closeAvailabilitySheet() {
+            const sheet = el('availabilitySheet');
+            sheet.classList.remove('is-open');
+            document.body.style.overflow = '';
+            window.setTimeout(() => { sheet.hidden = true; }, 300);
+        }
+
+        async function refreshAvailability() {
+            try {
+                const response = await fetch('/api/engineer-availability', { cache: 'no-store' });
+                if (!response.ok) throw new Error('Engineer availability could not be refreshed.');
+                const result = await response.json();
+                renderAvailability(result.engineers);
+            } catch (error) {
+                console.error(error);
+            }
         }
 
         function makePin() {
@@ -516,20 +677,21 @@
         }
 
         async function useCurrentGps() {
-            el('locationStatus').textContent = 'GPS খোঁজা হচ্ছে...';
+            el('locationStatus').textContent = 'Getting GPS location...';
             try {
                 const position = await requestCurrentPosition();
                 setLocation(position.coords.latitude, position.coords.longitude, position.coords.accuracy, 'gps');
                 if (map) map.setView([position.coords.latitude, position.coords.longitude], 17);
             } catch (error) {
                 el('locationStatus').textContent = error && error.code === 1
-                    ? 'লোকেশন অনুমতি বন্ধ আছে; ব্রাউজারের সাইট সেটিংসে অনুমতি দিন'
-                    : 'GPS পাওয়া যায়নি; ম্যাপে লোকেশন বাছুন';
+                    ? 'Location permission is disabled; allow it in your browser site settings.'
+                    : 'GPS location unavailable; choose a location on the map.';
             }
         }
 
         function initMap() {
             L.DomEvent.disableClickPropagation(el('colorSheet'));
+            L.DomEvent.disableClickPropagation(el('availabilitySheet'));
             map = L.map('locationMap', { zoomControl: false, scrollWheelZoom: false, attributionControl: true })
                 .setView(DEFAULT_VIEW, 13);
             addTiles(map);
@@ -616,7 +778,7 @@
             el('pairsSection').classList.toggle('hidden', isCustomer);
             el('customerExtra').classList.toggle('hidden', !isCustomer);
             el('customer_id').required = isCustomer;
-            el('locationTitle').textContent = isCustomer ? 'লোকেশন' : 'বক্সের লোকেশন';
+            el('locationTitle').textContent = isCustomer ? 'Location' : 'Box location';
             setFieldError(el('customer_id'), el('customerError'), false);
             setFieldError(el('tj_location'), el('tjLocationError'), false);
         }
@@ -624,10 +786,10 @@
         function updatePairNumbers() {
             const rows = Array.from(el('pairsList').children);
             rows.forEach((row, index) => {
-                row.querySelector('.pair-index').textContent = toBangla(index + 1);
+                row.querySelector('.pair-index').textContent = String(index + 1);
                 row.querySelector('.pair-remove').hidden = rows.length === 1;
             });
-            el('pairCount').textContent = toBangla(rows.length);
+            el('pairCount').textContent = String(rows.length);
         }
 
         function applyColor(button, value, label, hex) {
@@ -666,7 +828,7 @@
             const remove = document.createElement('button');
             remove.type = 'button';
             remove.className = 'pair-remove btn grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#16302A]/40 hover:bg-[#F4F1E9] hover:text-[#B3261E]';
-            remove.setAttribute('aria-label', 'জোড়া বাদ দিন');
+            remove.setAttribute('aria-label', 'Remove pair');
             remove.innerHTML = '<i class="ph-bold ph-x text-[12px]" aria-hidden="true"></i>';
             remove.addEventListener('click', () => {
                 if (el('pairsList').children.length === 1) return;
@@ -683,12 +845,12 @@
             const downField = document.createElement('input');
             downField.type = 'text';
             downField.autocomplete = 'off';
-            downField.placeholder = 'ডাউন লোকেশন';
+            downField.placeholder = 'Down location';
             downField.className = 'pair-location field h-10 min-w-0 flex-1 px-2.5 text-[13px] leading-none placeholder:text-[#16302A]/35';
             bottom.append(downIcon, downField);
 
-            const first = preset && preset.color1 ? preset.color1 : { value: 'Blue', label: 'নীল', hex: '#2563EB' };
-            const second = preset && preset.color2 ? preset.color2 : { value: 'Orange', label: 'কমলা', hex: '#F97316' };
+            const first = preset && preset.color1 ? preset.color1 : { value: 'Blue', label: 'Blue', hex: '#2563EB' };
+            const second = preset && preset.color2 ? preset.color2 : { value: 'Orange', label: 'Orange', hex: '#F97316' };
             applyColor(inputButton, first.value, first.label, first.hex);
             applyColor(outputButton, second.value, second.label, second.hex);
             if (preset && preset.location) downField.value = preset.location;
@@ -723,7 +885,7 @@
             activeColorRow = button;
             activeColorSlot = button.dataset.slot;
             const row = button.closest('.pair-row');
-            el('sheetTarget').textContent = 'জোড়া ' + row.querySelector('.pair-index').textContent;
+            el('sheetTarget').textContent = 'Pair ' + row.querySelector('.pair-index').textContent;
             el('sheetSlot').textContent = SLOT_LABEL[activeColorSlot] || '';
             el('customColorWrap').hidden = true;
             el('customColorInput').value = '';
@@ -753,7 +915,7 @@
         function calculateFiber() {
             const start = parseFloat(el('start_meter').value) || 0;
             const end = parseFloat(el('end_meter').value) || 0;
-            el('totalFiberDisplay').textContent = toBangla(Math.abs(end - start));
+            el('totalFiberDisplay').textContent = String(Math.abs(end - start));
         }
 
         function showToast(message, isError) {
@@ -776,7 +938,7 @@
                     localStorage.removeItem(AREA_STORAGE_KEY);
                 }
             } catch (error) {
-                /* ব্রাউজারে সংরক্ষণ না হলেও ফর্ম কাজ করবে */
+                /* The form remains usable when browser storage is unavailable. */
             }
         }
 
@@ -788,7 +950,7 @@
                     el('area').value = saved;
                 }
             } catch (error) {
-                /* কিছু করার নেই */
+                /* No action is needed when browser storage is unavailable. */
             }
         }
 
@@ -800,7 +962,7 @@
 
         async function loadLatestCustomerId() {
             const response = await fetch('/api/latest-customer-id');
-            if (!response.ok) throw new Error('সর্বশেষ ID লোড করা যায়নি');
+            if (!response.ok) throw new Error('Could not load the latest ID.');
             const result = await response.json();
             displayLatestCustomerId(result.customer_id);
         }
@@ -832,25 +994,25 @@
 
             if (!area) {
                 setFieldError(el('area'), el('areaError'), true);
-                showToast('এলাকা বাছাই করুন', true);
+                showToast('Choose an area.', true);
                 return;
             }
             if (isCustomer && !customerId) {
                 setFieldError(el('customer_id'), el('customerError'), true);
                 el('customer_id').focus();
-                showToast('কাস্টমার ID লিখুন', true);
+                showToast('Enter the customer ID.', true);
                 return;
             }
             if (!isCustomer && !el('tj_location').value.trim()) {
                 setFieldError(el('tj_location'), el('tjLocationError'), true);
                 el('tj_location').focus();
-                showToast('বক্সের লোকেশন লিখুন', true);
+                showToast('Enter the box location.', true);
                 return;
             }
             if (state.lat === null || state.lng === null) {
                 await useCurrentGps();
                 if (state.lat === null || state.lng === null) {
-                    showToast('লোকেশন পাওয়া যায়নি; ম্যাপে লোকেশন বাছুন', true);
+                    showToast('Location unavailable; choose a location on the map.', true);
                     return;
                 }
             }
@@ -876,7 +1038,7 @@
             const button = el('submitBtn');
             const label = el('submitLabel');
             button.disabled = true;
-            label.textContent = 'সেভ হচ্ছে...';
+            label.textContent = 'Saving...';
             try {
                 const response = await fetch('/api/save-log', {
                     method: 'POST',
@@ -885,7 +1047,7 @@
                 });
                 const result = await response.json();
                 if (!response.ok || result.status !== 'success') {
-                    throw new Error(result.message || 'তথ্য সেভ হয়নি।');
+                    throw new Error(result.message || 'Could not save the information.');
                 }
 
                 showToast(result.message);
@@ -907,7 +1069,7 @@
                 showToast(error.message, true);
             } finally {
                 button.disabled = false;
-                label.textContent = 'সেভ';
+                label.textContent = 'Save';
             }
         }
 
@@ -950,11 +1112,16 @@
         el('customColorSave').addEventListener('click', applyCustomColor);
         el('closeSheetBtn').addEventListener('click', closeColorSheet);
         document.querySelector('[data-close-sheet]').addEventListener('click', closeColorSheet);
+        el('openAvailabilityBtn').addEventListener('click', openAvailabilitySheet);
+        el('closeAvailabilityBtn').addEventListener('click', closeAvailabilitySheet);
+        document.querySelector('[data-close-availability]').addEventListener('click', closeAvailabilitySheet);
         el('start_meter').addEventListener('input', calculateFiber);
         el('end_meter').addEventListener('input', calculateFiber);
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') return;
-            if (!el('colorSheet').hidden) {
+            if (!el('availabilitySheet').hidden) {
+                closeAvailabilitySheet();
+            } else if (!el('colorSheet').hidden) {
                 closeColorSheet();
             } else if (!el('mapOverlay').hidden) {
                 closeFullMap();
@@ -963,6 +1130,8 @@
         el('techForm').addEventListener('submit', saveLog);
 
         window.addEventListener('load', () => {
+            renderAvailability(INITIAL_ENGINEERS);
+            window.setInterval(refreshAvailability, 60000);
             restoreArea();
             initMap();
             addPair();

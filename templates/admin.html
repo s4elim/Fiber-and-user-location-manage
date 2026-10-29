@@ -166,8 +166,15 @@
 </head>
 <body class="min-h-screen">
 {% macro edit_form(record, csrf_token) %}
-<div id="edit-{{ record.id }}" class="mt-2 border-t border-[#16302A]/10 pt-3" hidden>
-    <form method="post" action="{{ url_for('admin_update', record_id=record.id) }}" class="space-y-3">
+<div id="edit-{{ record.id }}" class="fixed inset-0 z-[90] flex items-center justify-center bg-[#16302A]/45 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="edit-title-{{ record.id }}" hidden>
+    <section class="card flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden">
+        <header class="flex shrink-0 items-center justify-between border-b border-[#16302A]/10 px-4 py-3">
+            <h2 id="edit-title-{{ record.id }}" class="text-[15px] font-bold">Edit task #{{ record.id }}</h2>
+            <button type="button" onclick="toggleEdit({{ record.id }})" class="btn btn-ghost grid h-8 w-8 place-items-center rounded-lg" aria-label="Close edit form">
+                <i class="ph-bold ph-x text-[15px]" aria-hidden="true"></i>
+            </button>
+        </header>
+        <form method="post" action="{{ url_for('admin_update', record_id=record.id) }}" class="space-y-3 overflow-y-auto p-4">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
             <label class="block text-[11.5px] font-semibold text-[#16302A]/75">Work type
@@ -225,7 +232,8 @@
             <button type="button" onclick="toggleEdit({{ record.id }})" class="btn btn-ghost h-9 rounded-xl px-3 text-[12.5px] font-semibold">Cancel</button>
             <button type="submit" class="btn btn-primary h-9 rounded-xl px-3.5 text-[12.5px] font-semibold">Save changes</button>
         </div>
-    </form>
+        </form>
+    </section>
 </div>
 {% endmacro %}
 {% macro task_card(record, csrf_token, initially_hidden=false) %}
@@ -333,7 +341,7 @@
         <span class="text-[11px] text-[#16302A]/70">Latest first</span>
         {% endif %}
     </header>
-    <div class="task-list min-w-0 {{ 'grid grid-cols-1 content-start gap-2 md:grid-cols-2 xl:grid-cols-2' if status == 'pending' else 'grid grid-cols-1 content-start gap-1.5 sm:grid-cols-2 xl:grid-cols-3' }}" data-order-key="{{ category }}-{{ status }}" {% if status == 'done' %}data-visible-count="15"{% endif %}>
+    <div class="task-list min-w-0 {{ 'grid grid-cols-1 content-start gap-2 md:grid-cols-2 xl:grid-cols-2' if status == 'pending' else 'grid grid-cols-1 content-start gap-1.5' }}" data-order-key="{{ category }}-{{ status }}" {% if status == 'done' %}data-visible-count="15"{% endif %}>
         {% set lane_records = records|selectattr('status', 'equalto', status)|list %}
         {% for record in lane_records %}
         {{ task_card(record, csrf_token, status == 'done' and loop.index > 15) }}
@@ -365,7 +373,20 @@
             <a href="{{ url_for('admin_accounts') }}" class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
                 <i class="ph-bold ph-users-three text-[14px]" aria-hidden="true"></i>Account management
             </a>
+            <a href="{{ url_for('admin_activity_logs') }}" class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
+                <i class="ph-bold ph-notebook text-[14px]" aria-hidden="true"></i>Logs
+            </a>
+            {% else %}
+            <a href="{{ url_for('editor_profile') }}" class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
+                <i class="ph-bold ph-user-circle text-[14px]" aria-hidden="true"></i>My profile
+            </a>
             {% endif %}
+            <a href="{{ url_for('admin_completed_map') }}" class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
+                <i class="ph-bold ph-map-trifold text-[14px]" aria-hidden="true"></i>Completed map
+            </a>
+            <a href="{{ url_for('admin_completed_locations_kml') }}" class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
+                <i class="ph-bold ph-download-simple text-[14px]" aria-hidden="true"></i>Download KML
+            </a>
             <a href="/" class="btn btn-primary flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
                 <i class="ph-bold ph-plus text-[14px]" aria-hidden="true"></i>New entry
             </a>
@@ -720,8 +741,25 @@
 
     function toggleEdit(recordId) {
         const panel = document.getElementById('edit-' + recordId);
-        if (panel) panel.hidden = !panel.hidden;
+        if (!panel) return;
+        panel.hidden = !panel.hidden;
+        document.body.style.overflow = panel.hidden ? '' : 'hidden';
+        if (!panel.hidden) {
+            panel.querySelector('input:not([type="hidden"]), select, textarea')?.focus();
+        }
     }
+
+    document.querySelectorAll('[id^="edit-"][role="dialog"]').forEach((panel) => {
+        panel.addEventListener('click', (event) => {
+            if (event.target === panel) toggleEdit(panel.id.slice(5));
+        });
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        const openEditPanel = document.querySelector('[id^="edit-"][role="dialog"]:not([hidden])');
+        if (openEditPanel) toggleEdit(openEditPanel.id.slice(5));
+    });
 
     async function copyCoordinates(button) {
         const coordinates = button.dataset.coordinates;

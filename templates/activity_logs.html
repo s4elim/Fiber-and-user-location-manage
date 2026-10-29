@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity log · Field Log</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap">
+    <style>
+        body {
+            background: #F4F1E9;
+            color: #16302A;
+            font-family: system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .card {
+            background: #FFFFFF;
+            border: 1px solid rgba(22, 48, 42, 0.14);
+            border-radius: 20px;
+            box-shadow: 0 1px 2px rgba(22, 48, 42, 0.04), 0 14px 34px -26px rgba(22, 48, 42, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <main class="mx-auto max-w-[760px] px-4 py-4 sm:px-6 sm:py-6">
+        <header class="card mb-3 flex items-center justify-between gap-3 px-4 py-3">
+            <div class="flex items-center gap-2.5">
+                <a href="{{ url_for('admin') }}" class="grid h-9 w-9 place-items-center rounded-xl border border-[#16302A]/20" aria-label="Back to task board">
+                    <i class="ph-bold ph-arrow-left text-[15px]" aria-hidden="true"></i>
+                </a>
+                <div class="leading-tight">
+                    <h1 class="text-[16px] font-bold">Recent activity</h1>
+                    <p class="text-[11px] text-[#16302A]/65">Latest 40 events · root account only</p>
+                </div>
+            </div>
+            <a href="{{ url_for('admin_accounts') }}" class="rounded-xl border border-[#16302A]/20 px-3 py-2 text-[11px] font-semibold">Accounts</a>
+        </header>
+
+        <section class="card overflow-hidden" aria-label="Recent activity">
+            {% if logs %}
+                {% for log in logs %}
+                <article class="flex items-start justify-between gap-3 border-b border-[#16302A]/[0.07] px-3 py-2.5 last:border-0">
+                    <div class="min-w-0">
+                        <p class="truncate text-[12px] font-semibold">{{ log[1] }} · {{ log[2] }}{% if log[3] %} · {{ log[3] }}{% endif %}</p>
+                    </div>
+                    <time class="shrink-0 text-[10px] tabular-nums text-[#16302A]/55">{{ log[0] }}</time>
+                </article>
+                {% endfor %}
+            {% else %}
+            <p class="px-4 py-8 text-center text-[12px] text-[#16302A]/60">No activity has been logged yet.</p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

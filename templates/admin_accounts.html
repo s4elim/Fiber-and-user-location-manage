@@ -1,161 +1,410 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account management</title>
+    <title>Accounts · Field Log</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap">
+    <style>
+        :root {
+            --ground: #F4F1E9;
+            --surface: #FFFFFF;
+            --ink: #16302A;
+            --line: rgba(22, 48, 42, 0.14);
+            --line-strong: rgba(22, 48, 42, 0.24);
+            --action: #1B7F52;
+            --action-deep: #146244;
+            --action-soft: #EAF3ED;
+            --danger: #B3261E;
+            --ring: rgba(27, 127, 82, 0.16);
+            --shadow-card: 0 1px 2px rgba(22, 48, 42, 0.04), 0 14px 34px -26px rgba(22, 48, 42, 0.5);
+        }
+
+        body {
+            background: var(--ground);
+            color: var(--ink);
+            font-family: 'Hind Siliguri', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .field {
+            background: var(--surface);
+            color: var(--ink);
+            border: 1.5px solid var(--line-strong);
+            border-radius: 12px;
+            transition: border-color .18s ease, box-shadow .18s ease;
+        }
+
+        .field:focus,
+        .field:focus-visible {
+            outline: none;
+            border-color: var(--action);
+            box-shadow: 0 0 0 4px var(--ring);
+        }
+
+        .field.h-11, .btn.h-11 { height: 2.5rem; }
+        .field.h-10, .btn.h-10 { height: 2.25rem; }
+        .field.h-9, .btn.h-9 { height: 2rem; }
+        .field.h-8, .btn.h-8 { height: 1.875rem; }
+        [hidden] { display: none !important; }
+
+        .btn {
+            transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, transform .16s ease;
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-primary {
+            background: var(--action);
+            color: #FFFFFF;
+            box-shadow: 0 1px 2px rgba(22, 48, 42, 0.16), 0 8px 18px -12px rgba(20, 98, 68, 0.75);
+        }
+
+        .btn-primary:hover {
+            background: var(--action-deep);
+        }
+
+        .btn-ghost {
+            background: var(--surface);
+            color: var(--ink);
+            border: 1px solid var(--line-strong);
+        }
+
+        .btn-ghost:hover {
+            background: var(--action-soft);
+            border-color: rgba(27, 127, 82, 0.3);
+            color: var(--action-deep);
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(22, 48, 42, 0.06);
+            color: rgba(22, 48, 42, 0.7);
+        }
+
+        #availabilitySheet {
+            opacity: 0;
+            transition: opacity .22s ease;
+        }
+
+        #availabilitySheet.is-open {
+            opacity: 1;
+        }
+
+        #availabilitySheet .sheet-panel {
+            transform: translateY(101%);
+            transition: transform .3s cubic-bezier(.22, .95, .3, 1);
+        }
+
+        #availabilitySheet.is-open .sheet-panel {
+            transform: translateY(0);
+        }
+    </style>
 </head>
-<body class="min-h-screen bg-slate-100 p-4 text-slate-800 sm:p-8">
-    <main class="mx-auto max-w-5xl">
-        <header class="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <a href="{{ url_for('admin') }}" class="text-sm font-medium text-blue-700 hover:underline">← Back to task board</a>
-                <h1 class="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">Account management</h1>
-                <p class="mt-1 text-sm text-slate-500">Add editors and manage your main admin password.</p>
+<body class="min-h-screen">
+    <main class="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6">
+        <header class="card mb-3 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div class="flex items-center gap-2.5">
+                <a href="{{ url_for('admin') }}" class="btn btn-ghost grid h-9 w-9 place-items-center rounded-xl" aria-label="Back to task board">
+                    <i class="ph-bold ph-arrow-left text-[15px]" aria-hidden="true"></i>
+                </a>
+                <div class="leading-tight">
+                    <h1 class="text-[17px] font-bold">Account management</h1>
+                    <p class="text-[11.5px] text-[#16302A]/70">Field Log · {{ account.display_name or account.username }}</p>
+                </div>
             </div>
             <form method="post" action="{{ url_for('admin_logout') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button class="rounded-lg border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50">Log out</button>
+                <button class="btn btn-ghost flex h-9 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
+                    <i class="ph-bold ph-sign-out text-[14px]" aria-hidden="true"></i>Log out
+                </button>
             </form>
         </header>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}
-            <p class="mb-4 rounded-xl border px-4 py-3 text-sm {{ 'border-emerald-200 bg-emerald-50 text-emerald-800' if category == 'success' else 'border-red-200 bg-red-50 text-red-800' }}" role="status">{{ message }}</p>
+            <p class="mb-2 rounded-xl border px-3 py-2 text-[13px] {{ 'border-[#1B7F52]/25 bg-[#EAF3ED] text-[#146244]' if category == 'success' else 'border-[#B3261E]/25 bg-[#FBEAE8] text-[#B3261E]' }}" role="status">{{ message }}</p>
             {% endfor %}
         {% endwith %}
 
-        <section class="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                <div class="mb-5">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Team access</p>
-                    <h2 id="editorHeading" class="mt-1 text-xl font-bold text-slate-900">Add an editor</h2>
-                    <p class="mt-1 text-sm text-slate-500">Editors can sign in with either their username or mobile number.</p>
+        <section class="mb-3">
+            <div class="card p-4 sm:p-5">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h2 id="editorHeading" class="text-[16px] font-bold leading-tight">Add an editor</h2>
+                    <button type="button" id="openRootPassword" class="btn btn-ghost h-9 rounded-xl px-3 text-[12px] font-semibold">Change root password</button>
                 </div>
-                <form id="editorForm" method="post" action="{{ url_for('admin_add_editor') }}" class="space-y-4">
+                <p class="mt-0.5 text-[12.5px] text-[#16302A]/72">Editors sign in with their username or mobile number.</p>
+                <form id="editorForm" method="post" action="{{ url_for('admin_add_editor') }}" class="mt-3 space-y-2.5">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <label class="block text-sm font-medium text-slate-700">Editor name
-                        <input id="editorName" name="name" maxlength="80" autocomplete="name" required placeholder="Enter full name" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                    <label class="block text-[12px] font-semibold text-[#16302A]/78">Editor name
+                        <input id="editorName" name="name" maxlength="80" autocomplete="name" required placeholder="Enter full name" class="field mt-1 h-11 w-full px-3 text-[14px] font-medium placeholder:font-normal placeholder:text-[#16302A]/78">
                     </label>
-                    <label class="block text-sm font-medium text-slate-700">Username
-                        <input id="editorUsername" name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]{3,32}" autocomplete="username" required placeholder="e.g. technician01" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-                        <span class="mt-1 block text-xs font-normal text-slate-500">3-32 letters, numbers, dots, dashes or underscores.</span>
+                    <div class="grid gap-2.5 sm:grid-cols-2">
+                        <label class="block text-[12px] font-semibold text-[#16302A]/78">Username
+                            <input id="editorUsername" name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]{3,32}" autocomplete="username" required placeholder="technician01" class="field mt-1 h-11 w-full px-3 text-[14px] font-medium placeholder:font-normal placeholder:text-[#16302A]/78">
+                        </label>
+                        <label class="block text-[12px] font-semibold text-[#16302A]/78">Mobile number
+                            <input id="editorMobile" name="mobile" type="tel" inputmode="tel" autocomplete="tel" required placeholder="01XXXXXXXXX" class="field mt-1 h-11 w-full px-3 text-[14px] font-medium placeholder:font-normal placeholder:text-[#16302A]/78">
+                        </label>
+                    </div>
+                    <label class="block text-[12px] font-semibold text-[#16302A]/78">Password
+                        <input id="editorPassword" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required placeholder="At least 8 characters" class="field mt-1 h-11 w-full px-3 text-[14px] font-medium placeholder:font-normal placeholder:text-[#16302A]/78">
+                        <span id="editorPasswordHint" class="mt-1 hidden text-[11.5px] font-normal text-[#16302A]/70">Leave blank to keep the current password.</span>
                     </label>
-                    <label class="block text-sm font-medium text-slate-700">Mobile number
-                        <input id="editorMobile" name="mobile" type="tel" inputmode="tel" autocomplete="tel" required placeholder="01XXXXXXXXX" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-                        <span class="mt-1 block text-xs font-normal text-slate-500">Use 8-15 digits. Spaces, dashes and Bangla numerals are accepted.</span>
-                    </label>
-                    <label class="block text-sm font-medium text-slate-700">Password
-                        <input id="editorPassword" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required placeholder="At least 8 characters" class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-                        <span id="editorPasswordHint" class="mt-1 hidden text-xs font-normal text-slate-500">Leave blank to keep the current password.</span>
-                    </label>
-                    <div class="flex flex-wrap gap-2">
-                        <button id="editorSubmit" class="w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 sm:w-auto">Save editor</button>
-                        <button id="cancelEditorEdit" type="button" onclick="resetEditorForm()" class="hidden rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel edit</button>
+                    <div class="flex flex-wrap gap-2 pt-1">
+                        <button id="editorSubmit" class="btn btn-primary h-10 rounded-xl px-4 text-[13px] font-semibold">Save editor</button>
+                        <button id="cancelEditorEdit" type="button" onclick="resetEditorForm()" class="btn btn-ghost hidden h-10 rounded-xl px-4 text-[13px] font-semibold">Cancel edit</button>
                     </div>
                 </form>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                <p class="text-xs font-semibold uppercase tracking-wider text-violet-700">Security</p>
-                <h2 class="mt-1 text-xl font-bold text-slate-900">Change main admin password</h2>
-                <p class="mb-5 mt-1 text-sm text-slate-500">Confirm your current password before saving a new one.</p>
-                <form method="post" action="{{ url_for('admin_change_password') }}" class="space-y-4">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <label class="block text-sm font-medium text-slate-700">Current password
-                        <input name="current_password" type="password" autocomplete="current-password" required class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
-                    </label>
-                    <label class="block text-sm font-medium text-slate-700">New password
-                        <input name="new_password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
-                    </label>
-                    <label class="block text-sm font-medium text-slate-700">Confirm new password
-                        <input name="confirm_password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required class="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
-                    </label>
-                    <button class="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">Update password</button>
-                </form>
-            </div>
         </section>
 
-        <section class="mt-7">
-            <div class="mb-3 flex items-end justify-between">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Your team</p>
-                    <h2 class="mt-1 text-xl font-bold text-slate-900">Saved editors</h2>
-                </div>
-                <span class="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-800">{{ editor_accounts|length }}</span>
+        <section>
+            <div class="mb-2 flex items-end justify-between px-1">
+                <h2 class="text-[15px] font-bold">Saved editors <span class="chip ml-1 tabular-nums">{{ editor_accounts|length }}</span></h2>
+                <span class="text-[11.5px] text-[#16302A]/70">Sign in by username or mobile</span>
             </div>
             {% if editor_accounts %}
-            <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <table class="w-full min-w-[680px] text-left text-sm">
-                    <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                        <tr>
-                            <th class="px-4 py-3 font-semibold">Editor</th>
-                            <th class="px-4 py-3 font-semibold">Username</th>
-                            <th class="px-4 py-3 font-semibold">Mobile</th>
-                            <th class="px-4 py-3 text-right font-semibold">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                {% for editor in editor_accounts %}
-                        <tr>
-                            <td class="px-4 py-3 font-medium text-slate-900">{{ editor.name }}</td>
-                            <td class="px-4 py-3 text-slate-600">@{{ editor.username }}</td>
-                            <td class="px-4 py-3 text-slate-600">{{ editor.mobile }}</td>
-                            <td class="px-4 py-3">
-                                <div class="flex justify-end gap-2">
-                                    <button type="button" onclick="editEditor(this)" data-id="{{ editor.id }}" data-name="{{ editor.name }}" data-username="{{ editor.username }}" data-mobile="{{ editor.mobile }}" class="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100">Edit</button>
-                                    <form method="post" action="{{ url_for('admin_delete_editor', editor_id=editor.id) }}" onsubmit="return confirm('Delete this editor account? They will no longer be able to log in.');">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Delete</button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                {% endfor %}
-                    </tbody>
-                </table>
+            <div class="card overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[760px] text-left">
+                        <thead>
+                            <tr class="border-b border-[#16302A]/10 text-[11px] uppercase tracking-[0.06em] text-[#16302A]/70">
+                                <th class="px-4 py-2.5 font-semibold">Editor</th>
+                                <th class="px-4 py-2.5 font-semibold">Username</th>
+                                <th class="px-4 py-2.5 font-semibold">Mobile</th>
+                                <th class="px-4 py-2.5 text-right font-semibold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for editor in editor_accounts %}
+                            <tr class="border-b border-[#16302A]/[0.06] last:border-0">
+                                <td class="px-4 py-2.5 text-[13.5px] font-semibold">
+                                    <span class="block">{{ editor.name }}</span>
+                                    <button type="button" onclick="editAvailability(this)" data-id="{{ editor.id }}" data-name="{{ editor.name }}" data-schedule='{{ editor.schedule|tojson }}' class="btn mt-1 h-7 rounded-lg bg-[#EAF3ED] px-2 text-[11px] font-semibold text-[#146244] hover:bg-[#DCEBE2]">Set duty &amp; availability</button>
+                                </td>
+                                <td class="px-4 py-2.5 text-[13px] tabular-nums text-[#16302A]/75">{{ editor.username }}</td>
+                                <td class="px-4 py-2.5 text-[13px] tabular-nums text-[#16302A]/75">{{ editor.mobile }}</td>
+                                <td class="px-4 py-2.5">
+                                    <div class="flex justify-end gap-1.5">
+                                        <button type="button" onclick="editEditor(this)" data-id="{{ editor.id }}" data-name="{{ editor.name }}" data-username="{{ editor.username }}" data-mobile="{{ editor.mobile }}" class="btn h-8 rounded-lg bg-[#EAF3ED] px-2.5 text-[12px] font-semibold text-[#146244] hover:bg-[#DCEBE2]">Edit</button>
+                                        <form method="post" action="{{ url_for('admin_delete_editor', editor_id=editor.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button class="btn h-8 rounded-lg border border-[#B3261E]/20 px-2.5 text-[12px] font-semibold text-[#B3261E] hover:bg-[#FBEAE8]">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
             {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
-                <p class="font-medium text-slate-700">No editors yet</p>
-                <p class="mt-1 text-sm text-slate-500">Use the form above to add your first editor.</p>
+            <div class="card border-dashed px-5 py-10 text-center">
+                <i class="ph-bold ph-users-three text-[26px] text-[#16302A]/78" aria-hidden="true"></i>
+                <p class="mt-2 text-[14px] font-semibold">No editors yet</p>
+                <p class="mt-0.5 text-[12.5px] text-[#16302A]/70">Use the form above to add the first editor.</p>
             </div>
             {% endif %}
         </section>
     </main>
+    <div id="rootPasswordModal" class="fixed inset-0 z-[70] grid place-items-center bg-[#16302A]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="rootPasswordTitle" hidden>
+        <section class="card w-full max-w-[420px] p-4">
+            <div class="mb-3 flex items-center justify-between">
+                <h2 id="rootPasswordTitle" class="text-[16px] font-bold">Change main admin password</h2>
+                <button type="button" id="closeRootPassword" class="btn btn-ghost grid h-8 w-8 place-items-center rounded-lg" aria-label="Close">✕</button>
+            </div>
+            <p class="mb-3 text-[12px] text-[#16302A]/72">Confirm the current password before saving a new one.</p>
+            <form method="post" action="{{ url_for('admin_change_password') }}" class="space-y-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label class="block text-[12px] font-semibold text-[#16302A]/78">Current password
+                    <input name="current_password" type="password" autocomplete="current-password" required class="field mt-1 h-10 w-full px-3 text-[13px]">
+                </label>
+                <label class="block text-[12px] font-semibold text-[#16302A]/78">New password
+                    <input name="new_password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required class="field mt-1 h-10 w-full px-3 text-[13px]">
+                </label>
+                <label class="block text-[12px] font-semibold text-[#16302A]/78">Confirm new password
+                    <input name="confirm_password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required class="field mt-1 h-10 w-full px-3 text-[13px]">
+                </label>
+                <button class="btn btn-primary mt-1 h-10 w-full rounded-xl text-[13px] font-semibold">Update password</button>
+            </form>
+        </section>
+    </div>
+    <div id="availabilitySheet" class="fixed inset-0 z-50" hidden>
+        <button type="button" class="absolute inset-0 bg-[#16302A]/40" data-close-availability aria-label="Close dialog"></button>
+        <section class="sheet-panel absolute inset-x-0 bottom-0 mx-auto max-h-[88vh] w-full max-w-[500px] overflow-y-auto rounded-t-2xl bg-white shadow-[0_-16px_44px_-20px_rgba(22,48,42,0.6)]" role="dialog" aria-modal="true" aria-labelledby="availabilityHeading">
+            <div class="mx-auto mb-2 mt-2 h-1 w-9 rounded-full bg-[#16302A]/15" aria-hidden="true"></div>
+            <div class="mb-3 flex items-center justify-between px-4">
+                <div>
+                    <h2 id="availabilityHeading" class="text-[16px] font-bold">Duty schedule</h2>
+                    <p id="availabilityEditorName" class="text-[12px] text-[#16302A]/65"></p>
+                </div>
+                <button type="button" id="closeAvailabilityBtn" class="grid h-9 w-9 place-items-center rounded-full text-[#16302A]/60 hover:bg-[#16302A]/[0.06]" aria-label="Close">
+                    <i class="ph-bold ph-x text-[16px]" aria-hidden="true"></i>
+                </button>
+            </div>
+            <form id="availabilityForm" method="post" class="px-3 pb-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="editorWeeklyOff" class="block text-[11.5px] font-semibold">Weekly day off</label>
+                <select id="editorWeeklyOff" name="weekly_off_day" class="field mt-1 h-10 w-full px-2.5 text-[13px]">
+                    <option value="">No weekly day off</option>
+                    {% for day in [
+                        {'name': 'Monday', 'index': 0},
+                        {'name': 'Tuesday', 'index': 1},
+                        {'name': 'Wednesday', 'index': 2},
+                        {'name': 'Thursday', 'index': 3},
+                        {'name': 'Friday', 'index': 4},
+                        {'name': 'Saturday', 'index': 5},
+                        {'name': 'Sunday', 'index': 6}
+                    ] %}
+                    <option value="{{ day.index }}">{{ day.name }}</option>
+                    {% endfor %}
+                </select>
+                <p class="mb-1.5 mt-2 text-[11.5px] font-semibold">Weekly duty hours <span class="font-normal text-[#16302A]/60">(leave blank for days off)</span></p>
+                <div class="space-y-1.5">
+                    {% for day in [
+                        {'name': 'Monday', 'index': 0},
+                        {'name': 'Tuesday', 'index': 1},
+                        {'name': 'Wednesday', 'index': 2},
+                        {'name': 'Thursday', 'index': 3},
+                        {'name': 'Friday', 'index': 4},
+                        {'name': 'Saturday', 'index': 5},
+                        {'name': 'Sunday', 'index': 6}
+                    ] %}
+                    <div class="grid grid-cols-[78px_1fr_1fr] items-center gap-2 rounded-lg bg-[#F4F1E9]/60 px-2 py-1">
+                        <span class="text-[11px] font-medium">{{ day.name }}</span>
+                        <label class="sr-only" for="shift{{ day.index }}Start">{{ day.name }} duty start</label>
+                        <input id="shift{{ day.index }}Start" name="shift_{{ day.index }}_start" type="time" class="field h-9 min-w-0 px-2 text-[12px] tabular-nums" aria-label="{{ day.name }} duty start">
+                        <label class="sr-only" for="shift{{ day.index }}End">{{ day.name }} duty end</label>
+                        <input id="shift{{ day.index }}End" name="shift_{{ day.index }}_end" type="time" class="field h-9 min-w-0 px-2 text-[12px] tabular-nums" aria-label="{{ day.name }} duty end">
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                    <label class="text-[11px] font-semibold">Planned leave starts
+                        <input id="editorLeaveStart" name="leave_start" type="date" class="field mt-1 h-9 w-full px-2 text-[11px]">
+                    </label>
+                    <label class="text-[11px] font-semibold">Leave ends
+                        <input id="editorLeaveEnd" name="leave_end" type="date" class="field mt-1 h-9 w-full px-2 text-[11px]">
+                    </label>
+                </div>
+                <p class="mt-1 text-[10px] text-[#16302A]/60">Leave includes both the start and end dates.</p>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                    <label class="text-[11px] font-semibold">Away from
+                        <input id="editorAwayStart" name="away_start" type="datetime-local" class="field mt-1 h-9 w-full px-1.5 text-[10.5px]">
+                    </label>
+                    <label class="text-[11px] font-semibold">Return at
+                        <input id="editorAwayEnd" name="away_end" type="datetime-local" class="field mt-1 h-9 w-full px-1.5 text-[10.5px]">
+                    </label>
+                </div>
+                <button class="btn btn-primary mt-2 h-10 w-full rounded-xl text-[12px] font-semibold">Save duty &amp; availability</button>
+            </form>
+        </section>
+    </div>
     <script>
-        const editorForm = document.getElementById("editorForm");
+        const editorForm = document.getElementById('editorForm');
+        const availabilityForm = document.getElementById('availabilityForm');
+        const availabilitySheet = document.getElementById('availabilitySheet');
+
+        function editAvailability(button) {
+            const editor = button.dataset;
+            const schedule = JSON.parse(editor.schedule);
+            document.getElementById('availabilityEditorName').textContent = editor.name;
+            document.getElementById('editorWeeklyOff').value = schedule.weekly_off_day || '';
+            for (let day = 0; day < 7; day += 1) {
+                const shift = schedule[String(day)] || {};
+                document.getElementById('shift' + day + 'Start').value = shift.start || '';
+                document.getElementById('shift' + day + 'End').value = shift.end || '';
+            }
+            document.getElementById('editorLeaveStart').value = schedule.leave_start || '';
+            document.getElementById('editorLeaveEnd').value = schedule.leave_end || '';
+            document.getElementById('editorAwayStart').value = schedule.away_start || '';
+            document.getElementById('editorAwayEnd').value = schedule.away_end || '';
+            availabilityForm.action = '/admin/editors/' + editor.id + '/availability';
+            availabilitySheet.hidden = false;
+            document.body.style.overflow = 'hidden';
+            requestAnimationFrame(() => availabilitySheet.classList.add('is-open'));
+        }
+
+        function closeAvailability() {
+            availabilitySheet.classList.remove('is-open');
+            document.body.style.overflow = '';
+            window.setTimeout(() => { availabilitySheet.hidden = true; }, 300);
+        }
 
         function editEditor(button) {
             const editor = button.dataset;
-            document.getElementById("editorName").value = editor.name;
-            document.getElementById("editorUsername").value = editor.username;
-            document.getElementById("editorMobile").value = editor.mobile;
-            const password = document.getElementById("editorPassword");
-            password.value = "";
+            document.getElementById('editorName').value = editor.name;
+            document.getElementById('editorUsername').value = editor.username;
+            document.getElementById('editorMobile').value = editor.mobile;
+            const password = document.getElementById('editorPassword');
+            password.value = '';
             password.required = false;
-            password.placeholder = "Leave blank to keep current password";
-            document.getElementById("editorPasswordHint").classList.remove("hidden");
-            document.getElementById("editorHeading").textContent = "Edit editor";
-            document.getElementById("editorSubmit").textContent = "Update editor";
-            document.getElementById("cancelEditorEdit").classList.remove("hidden");
-            editorForm.action = `/admin/editors/${editor.id}/update`;
-            editorForm.scrollIntoView({ behavior: "smooth", block: "start" });
-            document.getElementById("editorName").focus({ preventScroll: true });
+            password.placeholder = 'Leave blank to keep current password';
+            document.getElementById('editorPasswordHint').classList.remove('hidden');
+            document.getElementById('editorHeading').textContent = 'Edit editor';
+            document.getElementById('editorSubmit').textContent = 'Update editor';
+            document.getElementById('cancelEditorEdit').classList.remove('hidden');
+            editorForm.action = '/admin/editors/' + editor.id + '/update';
+            editorForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            document.getElementById('editorName').focus({ preventScroll: true });
         }
 
         function resetEditorForm() {
             editorForm.reset();
             editorForm.action = "{{ url_for('admin_add_editor') }}";
-            const password = document.getElementById("editorPassword");
+            const password = document.getElementById('editorPassword');
             password.required = true;
-            password.placeholder = "At least 8 characters";
-            document.getElementById("editorPasswordHint").classList.add("hidden");
-            document.getElementById("editorHeading").textContent = "Add an editor";
-            document.getElementById("editorSubmit").textContent = "Save editor";
-            document.getElementById("cancelEditorEdit").classList.add("hidden");
+            password.placeholder = 'At least 8 characters';
+            document.getElementById('editorPasswordHint').classList.add('hidden');
+            document.getElementById('editorHeading').textContent = 'Add an editor';
+            document.getElementById('editorSubmit').textContent = 'Save editor';
+            document.getElementById('cancelEditorEdit').classList.add('hidden');
         }
+
+        document.getElementById('closeAvailabilityBtn').addEventListener('click', closeAvailability);
+        document.querySelector('[data-close-availability]').addEventListener('click', closeAvailability);
+        const rootPasswordModal = document.getElementById('rootPasswordModal');
+        const openRootPassword = document.getElementById('openRootPassword');
+        function closeRootPasswordModal() {
+            rootPasswordModal.hidden = true;
+        }
+        openRootPassword.addEventListener('click', () => {
+            rootPasswordModal.hidden = false;
+            rootPasswordModal.querySelector('input[name="current_password"]').focus();
+        });
+        document.getElementById('closeRootPassword').addEventListener('click', closeRootPasswordModal);
+        rootPasswordModal.addEventListener('click', (event) => {
+            if (event.target === rootPasswordModal) closeRootPasswordModal();
+        });
+        if (new URLSearchParams(window.location.search).get('show_password') === '1') {
+            rootPasswordModal.hidden = false;
+        }
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            if (!availabilitySheet.hidden) closeAvailability();
+            if (!rootPasswordModal.hidden) closeRootPasswordModal();
+        });
     </script>
 </body>
 </html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Completed work locations · Field Log</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #F4F1E9; color: #16302A; font-family: system-ui, sans-serif; }
+        #map { height: calc(100vh - 74px); min-height: 360px; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <header class="flex min-h-[74px] flex-wrap items-center justify-between gap-2 bg-[#164F3B] px-4 py-3 text-white">
+        <div>
+            <h1 class="text-[16px] font-bold">Completed work locations</h1>
+            <p class="text-[11px] text-white/75"><span id="locationCount">0</span> mapped locations</p>
+        </div>
+        <nav class="flex items-center gap-2">
+            <a href="{{ url_for('admin_completed_locations_kml') }}" class="rounded-lg bg-white px-3 py-2 text-[12px] font-semibold text-[#164F3B]">Download KML</a>
+            <a href="{{ url_for('admin') }}" class="rounded-lg border border-white/40 px-3 py-2 text-[12px] font-semibold text-white">Admin board</a>
+        </nav>
+    </header>
+    <main>
+        <div id="map" role="application" aria-label="Map of completed work locations"></div>
+        <p id="emptyMessage" class="mx-4 my-3 rounded-xl bg-white px-4 py-3 text-center text-[13px] text-[#16302A]/70" hidden>No completed tasks with coordinates were found.</p>
+    </main>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const locations = {{ locations|tojson }};
+        const map = L.map('map').setView([23.8103, 90.4125], 7);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        const bounds = [];
+        locations.forEach((location) => {
+            const marker = L.marker([location.latitude, location.longitude]).addTo(map);
+            const popup = document.createElement('div');
+            const heading = document.createElement('strong');
+            heading.textContent = `Task #${location.id} · ${location.work_type}`;
+            popup.appendChild(heading);
+            const details = [
+                `Area: ${location.area || 'Unassigned'}`,
+                location.work_type === 'TJ Box'
+                    ? `TJ Box location: ${location.location || '—'}`
+                    : `Customer ID: ${location.customer_id || '—'}`,
+                `Reference: ${location.customer_name || '—'}`,
+                `Completed: ${location.completed_at || '—'}`
+            ];
+            details.forEach((detail) => {
+                const line = document.createElement('div');
+                line.textContent = detail;
+                popup.appendChild(line);
+            });
+            marker.bindPopup(popup);
+            bounds.push([location.latitude, location.longitude]);
+        });
+        document.getElementById('locationCount').textContent = String(locations.length);
+        document.getElementById('emptyMessage').hidden = locations.length > 0;
+        if (bounds.length > 0) map.fitBounds(bounds, { padding: [28, 28], maxZoom: 15 });
+    </script>
+</body>
+</html>
